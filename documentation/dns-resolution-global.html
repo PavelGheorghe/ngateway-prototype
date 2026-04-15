@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DNS resolution — domain.com to IP</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      line-height: 1.55;
+      max-width: 56rem;
+      margin: 0 auto;
+      padding: 1.5rem 1.25rem 3rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-top: 0;
+    }
+    h2 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-top: 2rem;
+    }
+    p, ul {
+      margin: 0.75rem 0;
+    }
+    ul {
+      padding-left: 1.25rem;
+    }
+    .diagram {
+      margin: 1.25rem 0;
+      overflow-x: auto;
+      border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+      border-radius: 8px;
+      padding: 1rem;
+      background: color-mix(in srgb, Canvas 97%, CanvasText);
+    }
+    footer {
+      margin-top: 2.5rem;
+      font-size: 0.85rem;
+      opacity: 0.75;
+    }
+  </style>
+</head>
+<body>
+  <h1>How DNS resolution works globally</h1>
+  <p>
+    From a hostname like <code>domain.com</code> to an IP address (typically an
+    <strong>A</strong> or <strong>AAAA</strong> record): your device asks a
+    <strong>recursive resolver</strong>, which either answers from cache or walks the DNS tree
+    (root → TLD → authoritative) and returns the result.
+  </p>
+
+  <h2>Flow overview</h2>
+  <ol>
+    <li><strong>Stub resolver</strong> (OS) sends the query to a <strong>recursive resolver</strong>.</li>
+    <li>On a <strong>cache miss</strong>, the resolver queries root, then <code>.com</code> TLD, then authoritative NS for <code>domain.com</code>.</li>
+    <li>The authoritative server returns the A/AAAA record; the resolver caches it (TTL) and replies to the client.</li>
+  </ol>
+
+  <div class="diagram">
+    <div class="mermaid">
+flowchart LR
+  subgraph Client
+    APP[Browser / app]
+    STUB[Stub resolver\nOS / libc]
+  end
+
+  subgraph Recursive
+    REC[Recursive resolver\nISP / 1.1.1.1 / 8.8.8.8]
+    CACHE[(Cache\nTTL)]
+  end
+
+  subgraph Authoritative_chain
+    ROOT[Root servers\n.]
+    TLD[TLD servers\n.com]
+    AUTH[Auth NS for\ndomain.com]
+  end
+
+  APP -->|"What is domain.com?"| STUB
+  STUB -->|"Recursive query"| REC
+  REC <-->|hit / store| CACHE
+
+  REC -->|"Who handles .com?"| ROOT
+  ROOT -->|"Referral: .com NS"| REC
+
+  REC -->|"Who handles domain.com?"| TLD
+  TLD -->|"Referral: domain.com NS"| REC
+
+  REC -->|"A / AAAA for domain.com?"| AUTH
+  AUTH -->|"e.g. A → 203.0.113.10"| REC
+
+  REC -->|"IP answer"| STUB
+  STUB --> APP
+    </div>
+  </div>
+
+  <h2>Sequence (referrals)</h2>
+  <div class="diagram">
+    <div class="mermaid">
+sequenceDiagram
+  participant C as Client stub
+  participant R as Recursive resolver
+  participant Root as Root DNS
+  participant TLD as .com TLD
+  participant A as domain.com authoritative
+
+  C->>R: domain.com A?
+  alt cache miss
+    R->>Root: domain.com?
+    Root-->>R: delegate to .com
+    R->>TLD: domain.com?
+    TLD-->>R: delegate to domain.com NS
+    R->>A: domain.com A?
+    A-->>R: 203.0.113.10 (example)
+    Note over R: store until TTL expires
+  else cache hit
+    R-->>R: use cached RRset
+  end
+  R-->>C: 203.0.113.10
+    </div>
+  </div>
+
+  <footer>
+    Rendered with <a href="https://mermaid.js.org/">Mermaid</a> (loaded from jsDelivr). Open this file in a browser while online so the script can load.
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "neutral",
+      flowchart: { useMaxWidth: true, htmlLabels: true },
+      sequence: { useMaxWidth: true },
+    });
+  </script>
+</body>
+</html>

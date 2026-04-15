@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Puntu Domain Manager</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    label { display: block; margin: .5rem 0 .2rem; font-size: .9rem; }
+    input, select, textarea { width: 100%; padding: .5rem; border: 1px solid #d1d5db; border-radius: 6px; }
+    button { background: #2563eb; color: #fff; border: none; padding: .6rem 1rem; border-radius: 6px; cursor: pointer; margin-top: .8rem; }
+    button.secondary { background: #6b7280; }
+    pre { background: #111827; color: #f9fafb; padding: .7rem; border-radius: 6px; overflow: auto; }
+    .muted { color: #6b7280; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <h1>Puntu Domain Manager (Symfony)</h1>
+  <p class="muted">Form migrated to Symfony API with service-separated backend.</p>
+  <p class="muted"><a href="{{ path('app_client_workbench') }}">Client (CORE contact) workbench</a> — pick a contact, edit via <code>contact.modify</code>, then check known domains for linkage.</p>
+  <p class="muted"><a href="{{ path('app_domain_transfer_steps') }}">Domain transfer wizard</a> — <code>domain.check</code> → <code>domain.inquire</code> + authinfo → contacts → <code>domain.transfer.request</code> → poll.</p>
+  <p class="muted"><a href="{{ path('app_domain_outgoing_transfer_steps') }}">Outgoing transfer (losing registrar)</a> — poll queue (<code>poll.request</code>) → <code>domain.transfer.reply</code> (approve / reject).</p>
+  <p class="muted"><a href="{{ path('app_created_domain_steps') }}">Domain creation wizard</a> (<code>/created-domain-steps</code>) and <a href="{{ path('app_created_domain_steps_aws_hosted_zone') }}">AWS Route53 variant</a> (<code>/created-domain-steps-aws-hosted-zone</code>) — hosted zone + delegation NS for <code>domain.create</code>.</p>
+
+  <div class="card">
+    <h3>1) Check domain</h3>
+    <div class="row">
+      <div><label>Domain</label><input id="checkDomain" placeholder="example.com"></div>
+      <div><label>Registry</label><input id="checkRegistry" value=".com"></div>
+      <div><label>Launch phase (optional)</label><input id="checkLaunchPhase" placeholder="e.g. open"></div>
+    </div>
+    <button id="checkBtn">Check availability</button>
+  </div>
+
+  <div class="card">
+    <h3>2) Create contact</h3>
+    <div class="row">
+      <div><label>Registry</label><input id="contactRegistry" value=".com"></div>
+      <div><label>Contact ID (optional)</label><input id="contactId" placeholder="abc123"></div>
+      <div><label>Name</label><input id="contactName"></div>
+      <div><label>Email</label><input id="contactEmail"></div>
+      <div><label>Address</label><input id="contactAddress"></div>
+      <div><label>City</label><input id="contactCity"></div>
+      <div><label>State</label><input id="contactState"></div>
+      <div><label>Postal</label><input id="contactPostal"></div>
+      <div><label>Country</label><input id="contactCountry" value="US"></div>
+      <div><label>Phone</label><input id="contactPhone" placeholder="+1.0000000000"></div>
+      <div><label>Organization</label><input id="contactOrg"></div>
+    </div>
+    <button id="createContactBtn">Create contact</button>
+    <p class="muted" style="margin-top:.5rem;">CORE Payload 2.0 does not define <code>contact.list</code>. Use a known <code>contact.id</code> on the <a href="{{ path('app_client_workbench') }}">client workbench</a> (<code>contact.inquire</code>).</p>
+  </div>
+
+  <div class="card">
+    <h3>3) Inquire domain for contact</h3>
+    <div class="row">
+      <div><label>Domain name</label><input id="inqDomain" placeholder="example.eus"></div>
+      <div><label>Registry</label><input id="inqRegistry" value=".eus"></div>
+      <div><label>Contact ID</label><input id="inqContactId" placeholder="abc123"></div>
+    </div>
+    <button id="inquireByContactBtn">Inquire by contact</button>
+  </div>
+
+  <div class="card">
+    <h3>4) Buy domain</h3>
+    <p class="muted small" style="margin: 0 0 0.75rem;">After <code>contact.create</code>, <code>/domain/create</code> maps that contact to registrant, admin, tech, and billing (Verisign <code>.com</code> and similar require tech/billing).</p>
+    <div class="row">
+      <div><label>Domain</label><input id="buyDomain" placeholder="example.com"></div>
+      <div><label>Registry</label><input id="buyRegistry" value=".com"></div>
+      <div><label>Name</label><input id="cName"></div>
+      <div><label>Email</label><input id="cEmail"></div>
+      <div><label>Address</label><input id="cAddress"></div>
+      <div><label>City</label><input id="cCity"></div>
+      <div><label>Postal</label><input id="cPostal"></div>
+      <div><label>Country</label><input id="cCountry" value="US"></div>
+      <div><label>NS1</label><input id="ns1" placeholder="ns1.example.com"></div>
+      <div><label>NS2</label><input id="ns2" placeholder="ns2.example.com"></div>
+      <div><label>Launch phase (optional, Payload <code>launch.phase</code>)</label><input id="buyLaunchPhase" placeholder="e.g. open"></div>
+      <div style="grid-column: 1 / -1;"><label>Intended use (optional, <code>eligibility.intended-use</code>; often required for .eus)</label><textarea id="buyIntendedUse" rows="2" placeholder="How the domain will be used"></textarea></div>
+    </div>
+    <button id="buyBtn">Create contact + purchase</button>
+  </div>
+
+  <div class="card">
+    <h3>5) DNS zone modify</h3>
+    <div class="row">
+      <div><label>Zone ID</label><input id="zoneId" placeholder="example-com-zone"></div>
+      <div><label>Record (one per line)</label><textarea id="records" rows="4" placeholder="www IN A 1.2.3.4"></textarea></div>
+    </div>
+    <button id="dnsBtn">Save records</button>
+    <button class="secondary" id="zoneLoadBtn">Load zone</button>
+  </div>
+
+  <h3>Response</h3>
+  <pre id="out">{}</pre>
+
+  <script>
+    async function api(path, method, body) {
+      const res = await fetch('/api' + path, {
+        method,
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      const data = await res.json().catch(() => ({}));
+      return data;
+    }
+
+    function show(data) {
+      document.getElementById('out').textContent = JSON.stringify(data, null, 2);
+    }
+
+    document.getElementById('checkBtn').onclick = async () => {
+      const domain = document.getElementById('checkDomain').value.trim();
+      const registryId = document.getElementById('checkRegistry').value.trim() || '.com';
+      const launchPhase = document.getElementById('checkLaunchPhase').value.trim();
+      const body = { domains: [domain], registryId };
+      if (launchPhase) body.launchPhase = launchPhase;
+      show(await api('/domain/check', 'POST', body));
+    };
+
+    document.getElementById('createContactBtn').onclick = async () => {
+      const registryId = document.getElementById('contactRegistry').value.trim() || '.com';
+      const contact = {
+        id: document.getElementById('contactId').value.trim(),
+        name: document.getElementById('contactName').value.trim(),
+        email: document.getElementById('contactEmail').value.trim(),
+        address: document.getElementById('contactAddress').value.trim(),
+        city: document.getElementById('contactCity').value.trim(),
+        state: document.getElementById('contactState').value.trim(),
+        postalcode: document.getElementById('contactPostal').value.trim(),
+        countrycode: document.getElementById('contactCountry').value.trim(),
+        phone: document.getElementById('contactPhone').value.trim(),
+        organization: document.getElementById('contactOrg').value.trim()
+      };
+
+      show(await api('/contact/create', 'POST', { registryId, contact, contactId: contact.id || undefined }));
+    };
+
+    document.getElementById('inquireByContactBtn').onclick = async () => {
+      const domainName = document.getElementById('inqDomain').value.trim();
+      const registryId = document.getElementById('inqRegistry').value.trim() || '.com';
+      const contactId = document.getElementById('inqContactId').value.trim();
+      show(await api('/domain/inquire-by-contact', 'POST', { domainName, registryId, contactId }));
+    };
+
+    document.getElementById('buyBtn').onclick = async () => {
+      const domainName = document.getElementById('buyDomain').value.trim();
+      const registryId = document.getElementById('buyRegistry').value.trim() || '.com';
+      const contact = {
+        name: document.getElementById('cName').value.trim(),
+        email: document.getElementById('cEmail').value.trim(),
+        address: document.getElementById('cAddress').value.trim(),
+        city: document.getElementById('cCity').value.trim(),
+        postalcode: document.getElementById('cPostal').value.trim(),
+        countrycode: document.getElementById('cCountry').value.trim()
+      };
+      const ns1 = document.getElementById('ns1').value.trim();
+      const ns2 = document.getElementById('ns2').value.trim();
+      const contactRes = await api('/contact/create', 'POST', { registryId, contact });
+      if (!contactRes.success) {
+        show(contactRes);
+        return;
+      }
+      const launchPhase = document.getElementById('buyLaunchPhase').value.trim();
+      const eligibilityIntendedUse = document.getElementById('buyIntendedUse').value.trim();
+      const buyBody = {
+        domainName,
+        registryId,
+        periodValue: 1,
+        periodUnit: 'y',
+        contact: { ...contact, id: contactRes.contactId },
+        ns1: ns1 || undefined,
+        ns2: ns2 || undefined
+      };
+      if (launchPhase) buyBody.launchPhase = launchPhase;
+      if (eligibilityIntendedUse) buyBody.eligibilityIntendedUse = eligibilityIntendedUse;
+      const buyRes = await api('/domain/create', 'POST', buyBody);
+      show({ contact: contactRes, domain: buyRes });
+    };
+
+    document.getElementById('zoneLoadBtn').onclick = async () => {
+      const zoneId = encodeURIComponent(document.getElementById('zoneId').value.trim());
+      show(await fetch('/api/zone/inquire?zoneId=' + zoneId, { credentials: 'same-origin' }).then(r => r.json()));
+    };
+
+    document.getElementById('dnsBtn').onclick = async () => {
+      const zoneId = document.getElementById('zoneId').value.trim();
+      const records = document.getElementById('records').value.split('\n').map(v => v.trim()).filter(Boolean);
+      show(await api('/zone/modify', 'POST', { zoneId, records }));
+    };
+  </script>
+</body>
+</html>

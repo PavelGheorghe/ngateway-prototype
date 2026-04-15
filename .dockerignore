@@ -1,0 +1,5 @@
+var/
+vendor/
+.git/
+.idea/
+node_modules/

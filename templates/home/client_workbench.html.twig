@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Client workbench (CORE contact)</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+    crossorigin="anonymous"
+  >
+  <style>
+    body { background: #f8f9fa; }
+    .step-pane { display: none; }
+    .step-pane.active { display: block; }
+    .step-indicator { border: 1px solid #dbe1ea; border-radius: 8px; background: #fff; padding: .65rem .8rem; height: 100%; }
+    .step-indicator.active { border-left: 4px solid #0d6efd; }
+    .step-indicator.done { border-left: 4px solid #198754; }
+    #rawResponse { min-height: 120px; max-height: 240px; overflow: auto; font-size: .8rem; }
+    .domain-edit-panel td,
+    .domain-renewal-panel td,
+    .domain-status-panel td { padding: 0 !important; vertical-align: top; }
+    .member-states-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+      gap: .35rem .75rem;
+      align-items: start;
+    }
+    .member-states-grid .form-check { margin-bottom: 0; min-height: 0; }
+    .member-states-grid .form-check-label { font-size: .875rem; }
+  </style>
+</head>
+<body>
+  <main class="container py-4">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+      <div>
+        <h1 class="h4 mb-1">Client workbench</h1>
+        <p class="text-secondary small mb-0">
+          Payload 2.0 has no <code>contact.list</code> on <code>coregw/request</code>. Enter a known <code>registry.id</code> and contact handle, then use <code>contact.inquire</code> / <code>contact.modify</code> and batch <code>domain.inquire</code> for domains you want to check.
+        </p>
+      </div>
+      <a href="{{ path('app_home') }}" class="btn btn-outline-secondary btn-sm">Home</a>
+    </div>
+
+    <div class="row g-2 mb-4">
+      <div class="col-12 col-md-4">
+        <div id="ind1" class="step-indicator active">
+          <div class="fw-semibold">1. Select contact</div>
+          <div class="small text-secondary">Registry + handle</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div id="ind2" class="step-indicator">
+          <div class="fw-semibold">2. Details &amp; modify</div>
+          <div class="small text-secondary"><code>contact.inquire</code> / <code>contact.modify</code></div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div id="ind3" class="step-indicator">
+          <div class="fw-semibold">3. Check domains</div>
+          <div class="small text-secondary">Batch <code>domain.inquire</code></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-body">
+        <div id="step1" class="step-pane active">
+          <h2 class="h6">Step 1 — Registry and contact handle</h2>
+          <p class="small text-secondary mb-3">Enter a known <code>registry.id</code> and contact handle (e.g. from <code>contact.create</code> or <code>domain.inquire</code>), then load details.</p>
+          <div class="row g-2">
+            <div class="col-12 col-md-4">
+              <label class="form-label">Registry ID</label>
+              <input type="text" id="registryId" class="form-control" value=".com" autocomplete="off" title="Payload registry.id, e.g. .com, .eus">
+            </div>
+            <div class="col-12 col-md-5">
+              <label class="form-label">Contact handle / ID</label>
+              <input type="text" id="contactIdInput" class="form-control" placeholder="e.g. c10ea947000" autocomplete="off">
+            </div>
+          </div>
+          <div class="mt-3">
+            <button type="button" id="toStep2Btn" class="btn btn-primary">Load details (<code>contact.inquire</code>)</button>
+          </div>
+        </div>
+
+        <div id="step2" class="step-pane">
+          <h2 class="h6">Step 2 — Contact details</h2>
+          <p class="small text-secondary mb-2">Loaded via <code>contact.inquire</code>. Edit and save with <code>contact.modify</code>.</p>
+          <div class="row g-2">
+            <div class="col-12 col-md-6"><label class="form-label">Contact ID</label><input type="text" id="fContactId" class="form-control" readonly></div>
+            <div class="col-12 col-md-6"><label class="form-label">Name</label><input type="text" id="fName" class="form-control" autocomplete="name"></div>
+            <div class="col-12 col-md-6"><label class="form-label">Email</label><input type="email" id="fEmail" class="form-control" autocomplete="email"></div>
+            <div class="col-12 col-md-6"><label class="form-label">Organization</label><input type="text" id="fOrg" class="form-control"></div>
+            <div class="col-12"><label class="form-label">Address</label><input type="text" id="fAddress" class="form-control"></div>
+            <div class="col-12 col-md-4"><label class="form-label">City</label><input type="text" id="fCity" class="form-control"></div>
+            <div class="col-12 col-md-4"><label class="form-label">State</label><input type="text" id="fState" class="form-control"></div>
+            <div class="col-12 col-md-4"><label class="form-label">Postal</label><input type="text" id="fPostal" class="form-control"></div>
+            <div class="col-12 col-md-4"><label class="form-label">Country</label><input type="text" id="fCountry" class="form-control" maxlength="2"></div>
+            <div class="col-12 col-md-8"><label class="form-label">Phone</label><input type="text" id="fPhone" class="form-control" placeholder="+1.0000000000"></div>
+          </div>
+          <div class="mt-3 d-flex flex-wrap gap-2">
+            <button type="button" id="saveContactBtn" class="btn btn-primary">Save changes</button>
+            <button type="button" id="reloadContactBtn" class="btn btn-outline-secondary">Reload from registry</button>
+            <button type="button" id="toStep3Btn" class="btn btn-outline-primary">Continue to domains</button>
+            <button type="button" id="backStep1Btn" class="btn btn-link">Back</button>
+          </div>
+        </div>
+
+        <div id="step3" class="step-pane">
+          <h2 class="h6">Step 3 — Check known domains</h2>
+          <p class="small text-secondary mb-2">One FQDN per line (same registry as step 1). Up to 50 names. Each row runs <code>domain.inquire</code> and checks whether your contact ID appears on any <code>contact.N.id</code>. Use <strong>Edit</strong> for nameservers (<code>domain.modify</code>) and <strong>Renewal</strong> for renew / lifecycle (<code>domain.renew</code>, <code>domain.status.modify</code>, <code>domain.delete</code>).</p>
+          <textarea id="domainLines" class="form-control font-monospace" rows="6" placeholder="example.com&#10;other.example.com"></textarea>
+          <div class="mt-2">
+            <button type="button" id="batchCheckBtn" class="btn btn-primary">Check domains</button>
+            <button type="button" id="backStep2Btn" class="btn btn-link">Back</button>
+          </div>
+          <div class="table-responsive mt-3">
+            <table class="table table-sm table-bordered bg-white d-none" id="batchTable">
+              <thead><tr><th>Domain</th><th>Inquire OK</th><th>Linked to contact</th><th>Roles</th><th>Expiry (if any)</th><th>Status</th><th class="text-end" style="min-width:8rem">Actions</th></tr></thead>
+              <tbody id="batchTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+      <div class="card-body">
+        <div class="fw-semibold small mb-1">Last API response</div>
+        <pre id="rawResponse" class="bg-dark text-light p-2 rounded mb-0">{}</pre>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function scalar(v) {
+      if (v == null) return '';
+      return Array.isArray(v) ? String(v[0] ?? '') : String(v);
+    }
+
+    function showJson(obj) {
+      document.getElementById('rawResponse').textContent = JSON.stringify(obj, null, 2);
+    }
+
+    async function apiJson(path, method, body) {
+      const res = await fetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      const data = await res.json().catch(() => ({}));
+      return { ok: res.ok, data };
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function dataScalar(d, keys) {
+      if (!d || typeof d !== 'object') return '';
+      for (const k of keys) {
+        const v = d[k];
+        if (v != null && v !== '') return scalar(v);
+      }
+      return '';
+    }
+
+    function buildDomainEditPanel(domainName) {
+      const wrap = document.createElement('div');
+      wrap.className = 'p-3 border-top';
+      wrap.innerHTML =
+        '<p class="small text-secondary mb-2 mb-md-3">Nameservers only: <code>domain.modify</code> with <code>update: nameservers</code>. Empty fields are omitted from the request.</p>' +
+        '<div class="row g-2">' +
+        '<div class="col-12 col-md-6 col-xl-3"><label class="form-label small mb-0">NS1</label><input type="text" class="form-control form-control-sm js-dm-ns" data-ns="1" placeholder="ns1.example.com" autocomplete="off"></div>' +
+        '<div class="col-12 col-md-6 col-xl-3"><label class="form-label small mb-0">NS2</label><input type="text" class="form-control form-control-sm js-dm-ns" data-ns="2" placeholder="ns2.example.com" autocomplete="off"></div>' +
+        '<div class="col-12 col-md-6 col-xl-3"><label class="form-label small mb-0">NS3</label><input type="text" class="form-control form-control-sm js-dm-ns" data-ns="3" placeholder="ns3.example.com" autocomplete="off"></div>' +
+        '<div class="col-12 col-md-6 col-xl-3"><label class="form-label small mb-0">NS4</label><input type="text" class="form-control form-control-sm js-dm-ns" data-ns="4" placeholder="ns4.example.com" autocomplete="off"></div>' +
+        '</div>' +
+        '<div class="mt-2 d-flex flex-wrap gap-2">' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary js-dm-load-ns">Load current NS (<code>domain.inquire</code>)</button>' +
+        '<button type="button" class="btn btn-sm btn-primary js-dm-save-ns">Save nameservers</button>' +
+        '</div>';
+      wrap.querySelector('.js-dm-load-ns').addEventListener('click', async () => {
+        const reg = registryValue();
+        const q = new URLSearchParams({ name: domainName, registryId: reg });
+        const res = await fetch('/api/domain/inquire?' + q.toString());
+        const payload = await res.json().catch(() => ({}));
+        showJson(payload);
+        const d = payload.data && typeof payload.data === 'object' ? payload.data : {};
+        wrap.querySelectorAll('.js-dm-ns').forEach((input) => {
+          const i = input.getAttribute('data-ns');
+          const v = dataScalar(d, ['ns.' + i + '.name', 'NS.' + i + '.NAME']);
+          input.value = v;
+        });
+      });
+      wrap.querySelector('.js-dm-save-ns').addEventListener('click', async () => {
+        const body = {
+          registryId: registryValue(),
+          domainName: domainName,
+          ns1: '',
+          ns2: '',
+          ns3: '',
+          ns4: ''
+        };
+        wrap.querySelectorAll('.js-dm-ns').forEach((input) => {
+          const i = input.getAttribute('data-ns');
+          const v = input.value.trim();
+          if (i === '1') body.ns1 = v;
+          if (i === '2') body.ns2 = v;
+          if (i === '3') body.ns3 = v;
+          if (i === '4') body.ns4 = v;
+        });
+        if (!body.ns1 && !body.ns2 && !body.ns3 && !body.ns4) {
+          alert('Enter at least one nameserver (or use Load current NS).');
+          return;
+        }
+        const { ok, data } = await apiJson('/api/domain/modify', 'POST', body);
+        showJson(data);
+        if (!ok || !data.success) {
+          alert(data.message || 'domain.modify failed');
+        }
+      });
+      return wrap;
+    }
+
+    /** GatewayNG-style member client states (hyphenated; match is case-insensitive vs domain.inquire). */
+    const MEMBER_CLIENT_STATES = [
+      'member-lock',
+      'member-delete-prohibited',
+      'member-update-prohibited',
+      'member-transfer-prohibited',
+      'member-renew-prohibited',
+      'member-hold',
+      'member-autorenew-disabled',
+      'member-hold-pending-verification'
+    ];
+
+    function normalizeStatusToken(s) {
+      return String(s || '').trim().toLowerCase();
+    }
+
+    /** Map inquire tokens like memberAutorenewDisabled → member-autorenew-disabled for checkbox sync. */
+    function normalizeInquiredStatusToken(t) {
+      const raw = String(t || '').trim();
+      if (!raw) return '';
+      const lower = raw.toLowerCase();
+      if (MEMBER_CLIENT_STATES.includes(lower)) return lower;
+      if (/^member/i.test(raw)) {
+        const kebab = raw.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+        if (MEMBER_CLIENT_STATES.includes(kebab)) return kebab;
+      }
+      return lower;
+    }
+
+    function statusSetFromList(list) {
+      const set = new Set();
+      if (!Array.isArray(list)) return set;
+      list.forEach((t) => {
+        const n = normalizeInquiredStatusToken(t);
+        if (n) set.add(n);
+      });
+      return set;
+    }
+
+    function memberStateBaselineFromStatuses(domainStatuses) {
+      const have = statusSetFromList(domainStatuses);
+      const baseline = {};
+      MEMBER_CLIENT_STATES.forEach((token) => {
+        baseline[token] = have.has(token);
+      });
+      return baseline;
+    }
+
+    /** Mirrors DomainService::extractDomainStatusesFromData (domain.status + domain.status.N). */
+    function extractStatusesFromInquireData(d) {
+      if (!d || typeof d !== 'object') return [];
+      const out = [];
+      for (const key of ['domain.status', 'DOMAIN.STATUS']) {
+        const v = d[key];
+        if (v == null) continue;
+        const s = Array.isArray(v) ? String(v[0] ?? '').trim() : String(v).trim();
+        if (!s) continue;
+        s.split(',').forEach((part) => {
+          const p = part.trim();
+          if (p) out.push(p);
+        });
+        break;
+      }
+      for (let n = 1; n <= 30; n++) {
+        for (const key of ['domain.status.' + n, 'DOMAIN.STATUS.' + n]) {
+          const v = d[key];
+          if (v == null) continue;
+          const s = Array.isArray(v) ? String(v[0] ?? '').trim() : String(v).trim();
+          if (s) out.push(s);
+        }
+      }
+      const seen = new Set();
+      const uniq = [];
+      out.forEach((t) => {
+        const k = t.toLowerCase();
+        if (seen.has(k)) return;
+        seen.add(k);
+        uniq.push(t);
+      });
+      return uniq;
+    }
+
+    function buildDomainStatusPanel(domainName, domainId, domainNameI15d, domainStatuses) {
+      const did = String(domainId || '').trim();
+      const i15Default = String(domainNameI15d || '').trim();
+      const chkId = 'ds-incid-' + Math.random().toString(36).slice(2, 11);
+      const uid = Math.random().toString(36).slice(2, 9);
+
+      let baselineMember = memberStateBaselineFromStatuses(domainStatuses);
+
+      const memberChecksHtml = MEMBER_CLIENT_STATES.map((token, i) => {
+        const id = 'ms-' + uid + '-' + i;
+        return (
+          '<div class="form-check">' +
+          '<input class="form-check-input js-ms-cb" type="checkbox" value="' + escapeHtml(token) + '" id="' + id + '">' +
+          '<label class="form-check-label font-monospace small" for="' + id + '">' + escapeHtml(token) + '</label>' +
+          '</div>'
+        );
+      }).join('');
+
+      const wrap = document.createElement('div');
+      wrap.className = 'p-3 border-top';
+      wrap.innerHTML =
+        '<p class="small text-secondary mb-2"><code>domain.status.modify</code> via <code>POST /api/domain/status-modify</code>. <strong>Client states</strong> below mirror GatewayNG (member-* locks and holds). Checkboxes are synced from the table&rsquo;s last <code>domain.inquire</code>; use <strong>Refresh from registry</strong> after changes elsewhere. Tokens must match your registry (case-insensitive for member-*).</p>' +
+        '<div class="alert alert-success py-2 px-3 small d-none js-ds-ok" role="status"></div>' +
+        '<div class="card border mb-3">' +
+        '<div class="card-header py-2 px-3 d-flex flex-wrap align-items-center justify-content-between gap-2">' +
+        '<span class="small fw-semibold mb-0">Client states</span>' +
+        '<div class="d-flex flex-wrap gap-1">' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary js-ds-refresh">Refresh from registry</button>' +
+        '<button type="button" class="btn btn-sm btn-primary js-ds-apply-member">Apply client states</button>' +
+        '</div></div>' +
+        '<div class="card-body py-3 px-3">' +
+        '<div class="member-states-grid js-ms-grid">' + memberChecksHtml + '</div>' +
+        '<p class="small text-muted mb-0 mt-2 js-ms-hint">Unchecked = state absent; checked = request add. Compares to baseline after refresh or last successful apply.</p>' +
+        '</div></div>' +
+        '<details class="mb-3 small">' +
+        '<summary class="fw-semibold text-secondary cursor-pointer user-select-none">Advanced: free-text &amp; EPP-style presets</summary>' +
+        '<div class="pt-2">' +
+        '<p class="text-secondary mb-2">For registry-specific tokens (e.g. <code>clientTransferProhibited</code>, <code>deletion-hold</code>) not in the list above. Unknown tokens return <code>20004</code>.</p>' +
+        '<div class="row g-2 align-items-end mb-2">' +
+        '<div class="col-12 col-md-6"><label class="form-label small mb-0"><code>domain.status.add</code></label><input type="text" class="form-control form-control-sm js-ds-add" placeholder="Comma-separated" autocomplete="off"></div>' +
+        '<div class="col-12 col-md-6"><label class="form-label small mb-0"><code>domain.status.remove</code></label><input type="text" class="form-control form-control-sm js-ds-remove" placeholder="Comma-separated" autocomplete="off"></div>' +
+        '</div>' +
+        '<div class="d-flex flex-wrap gap-2 mb-2">' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary js-ds-apply-advanced">Send add/remove only</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-dark js-ds-doc-example" title="Afilias-style PDF example only">PDF: hold → lock</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary js-ds-deletion-hold">+ deletion-hold</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary js-ds-deletion-hold-clear">− deletion-hold</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-info js-ds-transfer-unlock">− clientTransferProhibited</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-info js-ds-transfer-lock">+ clientTransferProhibited</button>' +
+        '</div></div></details>' +
+        '<div class="form-check mb-2">' +
+        '<input class="form-check-input js-ds-inc-id" type="checkbox" id="' + chkId + '">' +
+        '<label class="form-check-label small" for="' + chkId + '">Include <code>domain.id</code> (from inquire: ' + escapeHtml(did || '—') + ')</label>' +
+        '</div>' +
+        '<div class="row g-2 align-items-end">' +
+        '<div class="col-12 col-md-4"><label class="form-label small mb-0"><code>domain.name.i15d</code></label><input type="text" class="form-control form-control-sm js-ds-i15d" placeholder="IDN Unicode FQDN if needed" autocomplete="off"></div>' +
+        '<div class="col-6 col-md-2"><label class="form-label small mb-0"><code>transaction.otp</code></label><input type="text" class="form-control form-control-sm js-ds-otp" autocomplete="off"></div>' +
+        '<div class="col-6 col-md-2"><label class="form-label small mb-0"><code>transaction.atp</code></label><input type="text" class="form-control form-control-sm js-ds-atp" autocomplete="off"></div>' +
+        '<div class="col-12 col-md-4"><label class="form-label small mb-0"><code>effective.member.id</code></label><input type="text" class="form-control form-control-sm js-ds-effective" placeholder="Optional reseller" autocomplete="off"></div>' +
+        '</div>';
+
+      wrap.querySelector('.js-ds-i15d').value = i15Default;
+
+      function applyBaselineToCheckboxes() {
+        wrap.querySelectorAll('.js-ms-cb').forEach((el) => {
+          const token = normalizeStatusToken(el.value);
+          el.checked = !!baselineMember[token];
+        });
+      }
+      applyBaselineToCheckboxes();
+
+      function readMemberDesired() {
+        const desired = {};
+        MEMBER_CLIENT_STATES.forEach((token) => {
+          desired[token] = false;
+        });
+        wrap.querySelectorAll('.js-ms-cb').forEach((el) => {
+          const token = normalizeStatusToken(el.value);
+          if (MEMBER_CLIENT_STATES.includes(token)) desired[token] = el.checked;
+        });
+        return desired;
+      }
+
+      function statusModifyBase() {
+        const i15 = wrap.querySelector('.js-ds-i15d').value.trim();
+        const otp = wrap.querySelector('.js-ds-otp').value.trim();
+        const atp = wrap.querySelector('.js-ds-atp').value.trim();
+        const eff = wrap.querySelector('.js-ds-effective').value.trim();
+        const inc = wrap.querySelector('.js-ds-inc-id').checked;
+        const b = { registryId: registryValue(), domainName: domainName, includeDomainId: inc };
+        if (inc && did) b.domainId = did;
+        if (i15) b.domainNameI15d = i15;
+        if (otp) b.transactionOtp = otp;
+        if (atp) b.transactionAtp = atp;
+        if (eff) b.effectiveMemberId = eff;
+        return b;
+      }
+
+      function showStatusSuccessBanner(data) {
+        const el = wrap.querySelector('.js-ds-ok');
+        if (!el) return;
+        const d = data && data.data && typeof data.data === 'object' ? data.data : {};
+        const parts = [];
+        const st = scalar(d['domain.status'] ?? d['DOMAIN.STATUS']);
+        if (st) parts.push('domain.status: ' + st);
+        const rtx = scalar(d['registry.transaction.id'] ?? d['REGISTRY.TRANSACTION.ID']);
+        if (rtx) parts.push('registry.transaction.id: ' + rtx);
+        const auth = scalar(d['contact.authinfo'] ?? d['CONTACT.AUTHINFO']);
+        if (auth) parts.push('contact.authinfo: ' + auth);
+        if (parts.length === 0) {
+          el.classList.add('d-none');
+          el.textContent = '';
+          return;
+        }
+        el.textContent = parts.join(' · ');
+        el.classList.remove('d-none');
+      }
+
+      async function postStatus(statusAdd, statusRemove) {
+        const body = { ...statusModifyBase(), statusAdd: statusAdd || '', statusRemove: statusRemove || '' };
+        const { ok, data } = await apiJson('/api/domain/status-modify', 'POST', body);
+        showJson(data);
+        if (!ok || !data.success) {
+          wrap.querySelector('.js-ds-ok').classList.add('d-none');
+          alert(data.message || 'domain.status.modify failed');
+          return false;
+        }
+        showStatusSuccessBanner(data);
+        return true;
+      }
+
+      function mergeCommaLists(a, b) {
+        const parts = []
+          .concat(String(a || '').split(/[,\s]+/))
+          .concat(String(b || '').split(/[,\s]+/));
+        const out = [];
+        const seen = new Set();
+        parts.forEach((p) => {
+          const t = p.trim();
+          if (!t) return;
+          const k = t.toLowerCase();
+          if (seen.has(k)) return;
+          seen.add(k);
+          out.push(t);
+        });
+        return out.join(', ');
+      }
+
+      wrap.querySelector('.js-ds-apply-member').addEventListener('click', async () => {
+        const desired = readMemberDesired();
+        const addParts = [];
+        const remParts = [];
+        MEMBER_CLIENT_STATES.forEach((token) => {
+          if (desired[token] && !baselineMember[token]) addParts.push(token);
+          if (!desired[token] && baselineMember[token]) remParts.push(token);
+        });
+        if (addParts.length === 0 && remParts.length === 0) {
+          alert('No client state changes compared to baseline. Use Refresh from registry if the table is stale, or toggle checkboxes.');
+          return;
+        }
+        const ok = await postStatus(addParts.join(', '), remParts.join(', '));
+        if (ok) baselineMember = { ...desired };
+      });
+
+      wrap.querySelector('.js-ds-refresh').addEventListener('click', async () => {
+        const reg = registryValue();
+        const q = new URLSearchParams({ name: domainName, registryId: reg });
+        const res = await fetch('/api/domain/inquire?' + q.toString());
+        const payload = await res.json().catch(() => ({}));
+        showJson(payload);
+        const d = payload.data && typeof payload.data === 'object' ? payload.data : {};
+        const split = extractStatusesFromInquireData(d);
+        baselineMember = memberStateBaselineFromStatuses(split);
+        applyBaselineToCheckboxes();
+        if (!payload.success) {
+          alert(payload.message || 'domain.inquire failed');
+        }
+      });
+
+      wrap.querySelector('.js-ds-apply-advanced').addEventListener('click', async () => {
+        const add = wrap.querySelector('.js-ds-add').value.trim();
+        const rem = wrap.querySelector('.js-ds-remove').value.trim();
+        if (!add && !rem) {
+          alert('Enter domain.status.add and/or domain.status.remove, or use client state checkboxes.');
+          return;
+        }
+        await postStatus(add, rem);
+      });
+
+      wrap.querySelector('.js-ds-doc-example').addEventListener('click', () => {
+        const okDlg = window.confirm(
+          'The CORE PDF uses remove=hold and add=lock as an Afilias-style illustration. ' +
+            'Many backends return 20004 Unknown state for those tokens.\n\nFill hold / lock in advanced fields?'
+        );
+        if (!okDlg) return;
+        wrap.querySelector('.js-ds-remove').value = 'hold';
+        wrap.querySelector('.js-ds-add').value = 'lock';
+      });
+      wrap.querySelector('.js-ds-deletion-hold').addEventListener('click', () => {
+        const cur = wrap.querySelector('.js-ds-add').value.trim();
+        wrap.querySelector('.js-ds-add').value = mergeCommaLists(cur, 'deletion-hold');
+      });
+      wrap.querySelector('.js-ds-deletion-hold-clear').addEventListener('click', () => {
+        const cur = wrap.querySelector('.js-ds-remove').value.trim();
+        wrap.querySelector('.js-ds-remove').value = mergeCommaLists(cur, 'deletion-hold');
+      });
+      wrap.querySelector('.js-ds-transfer-unlock').addEventListener('click', () => {
+        const cur = wrap.querySelector('.js-ds-remove').value.trim();
+        wrap.querySelector('.js-ds-remove').value = mergeCommaLists(cur, 'clientTransferProhibited');
+      });
+      wrap.querySelector('.js-ds-transfer-lock').addEventListener('click', () => {
+        const cur = wrap.querySelector('.js-ds-add').value.trim();
+        wrap.querySelector('.js-ds-add').value = mergeCommaLists(cur, 'clientTransferProhibited');
+      });
+
+      return wrap;
+    }
+
+    function buildDomainRenewalPanel(domainName, domainId, domainNameI15d) {
+      const did = String(domainId || '').trim();
+      const i15 = String(domainNameI15d || '').trim();
+      const wrap = document.createElement('div');
+      wrap.className = 'p-3 border-top';
+      wrap.innerHTML =
+        '<div class="small text-secondary mb-3">' +
+        '<p class="mb-2">Domains are <strong>auto-renewed by default</strong>. Explicit <code>domain.renew</code> is optional.</p>' +
+        '<p class="mb-2">To <strong>stop renewing at expiry</strong> (let the domain drop), use <code>domain.status.modify</code> to add status <code>member-autorenew-disabled</code>.</p>' +
+        '<p class="mb-2">To <strong>end registration</strong>: you can add <code>deletion-hold</code> first (deletion-hold period, often ≥8 days per policy). If the domain is not on hold when you send <code>domain.delete</code>, GatewayNG may apply a hold automatically before deletion.</p>' +
+        '<p class="mb-0 text-muted">CORE names the command <code>domain.status.modify</code> (not <code>domain.status.update</code>).</p>' +
+        '</div>' +
+        '<div class="row g-2 align-items-end mb-3">' +
+        '<div class="col-6 col-md-2"><label class="form-label small mb-0">Period</label><input type="number" class="form-control form-control-sm js-dr-period" min="1" max="99" value="1"></div>' +
+        '<div class="col-6 col-md-2"><label class="form-label small mb-0">Unit</label><select class="form-select form-select-sm js-dr-unit"><option value="y" selected>Year(s)</option><option value="m">Month(s)</option></select></div>' +
+        '<div class="col-12 col-md-auto"><button type="button" class="btn btn-sm btn-primary js-dr-renew">Renew now (<code>domain.renew</code>)</button></div>' +
+        '</div>' +
+        '<div class="d-flex flex-wrap gap-2 mb-2">' +
+        '<button type="button" class="btn btn-sm btn-outline-warning js-dr-autorenew-off">Disable auto-renew (<code>member-autorenew-disabled</code>)</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-success js-dr-autorenew-on">Re-enable auto-renew</button>' +
+        '</div>' +
+        '<div><button type="button" class="btn btn-sm btn-danger js-dr-delete">Delete domain (<code>domain.delete</code>)</button></div>';
+
+      const baseBody = () => {
+        const b = { registryId: registryValue(), domainName: domainName };
+        if (did) b.domainId = did;
+        return b;
+      };
+
+      const statusModifyBase = () => {
+        const b = { registryId: registryValue(), domainName: domainName, includeDomainId: false };
+        if (i15) b.domainNameI15d = i15;
+        return b;
+      };
+
+      wrap.querySelector('.js-dr-renew').addEventListener('click', async () => {
+        const periodValue = Number(wrap.querySelector('.js-dr-period').value || 1);
+        const periodUnit = wrap.querySelector('.js-dr-unit').value || 'y';
+        const body = { ...baseBody(), periodValue, periodUnit };
+        const { ok, data } = await apiJson('/api/domain/renew', 'POST', body);
+        showJson(data);
+        if (!ok || !data.success) alert(data.message || 'domain.renew failed');
+      });
+
+      async function postStatus(statusAdd, statusRemove) {
+        const body = { ...statusModifyBase(), statusAdd: statusAdd || '', statusRemove: statusRemove || '' };
+        const { ok, data } = await apiJson('/api/domain/status-modify', 'POST', body);
+        showJson(data);
+        if (!ok || !data.success) alert(data.message || 'domain.status.modify failed');
+      }
+
+      wrap.querySelector('.js-dr-autorenew-off').addEventListener('click', () => postStatus('member-autorenew-disabled', ''));
+      wrap.querySelector('.js-dr-autorenew-on').addEventListener('click', () => postStatus('', 'member-autorenew-disabled'));
+
+      wrap.querySelector('.js-dr-delete').addEventListener('click', async () => {
+        const msg =
+          'Send domain.delete for ' + domainName + '?\n\n' +
+          'If the domain is not already on deletion hold, GatewayNG may start a hold period (often at least 8 days) before the name is removed.';
+        if (!confirm(msg)) return;
+        const { ok, data } = await apiJson('/api/domain/delete', 'POST', baseBody());
+        showJson(data);
+        if (!ok || !data.success) alert(data.message || 'domain.delete failed');
+      });
+
+      return wrap;
+    }
+
+    function setIndicators(active) {
+      for (let i = 1; i <= 3; i++) {
+        const el = document.getElementById('ind' + i);
+        el.classList.remove('active', 'done');
+        if (i < active) el.classList.add('done');
+        if (i === active) el.classList.add('active');
+      }
+    }
+
+    function showStep(num) {
+      document.querySelectorAll('.step-pane').forEach((p) => p.classList.remove('active'));
+      document.getElementById('step' + num).classList.add('active');
+      setIndicators(num);
+    }
+
+    function registryValue() {
+      let r = document.getElementById('registryId').value.trim();
+      if (r && r[0] !== '.') r = '.' + r;
+      return r || '.com';
+    }
+
+    function fillFormFromInquire(payload) {
+      const d = payload.data && typeof payload.data === 'object' ? payload.data : {};
+      document.getElementById('fContactId').value = scalar(d['contact.id'] ?? d['CONTACT.ID']) || document.getElementById('contactIdInput').value.trim();
+      document.getElementById('fName').value = scalar(d['contact.name'] ?? d['CONTACT.NAME']);
+      document.getElementById('fEmail').value = scalar(d['contact.email'] ?? d['CONTACT.EMAIL']);
+      document.getElementById('fOrg').value = scalar(d['contact.organization'] ?? d['CONTACT.ORGANIZATION']);
+      document.getElementById('fAddress').value = scalar(d['contact.address.street.1'] ?? d['CONTACT.ADDRESS.STREET.1']);
+      document.getElementById('fCity').value = scalar(d['contact.address.city'] ?? d['CONTACT.ADDRESS.CITY']);
+      document.getElementById('fState').value = scalar(d['contact.address.state'] ?? d['CONTACT.ADDRESS.STATE']);
+      document.getElementById('fPostal').value = scalar(d['contact.address.postalcode'] ?? d['CONTACT.ADDRESS.POSTALCODE']);
+      document.getElementById('fCountry').value = scalar(d['contact.address.countrycode'] ?? d['CONTACT.ADDRESS.COUNTRYCODE']);
+      document.getElementById('fPhone').value = scalar(d['contact.voice.number'] ?? d['CONTACT.VOICE.NUMBER']);
+    }
+
+    async function loadInquire() {
+      const registryId = registryValue();
+      const contactId = document.getElementById('fContactId').value.trim() || document.getElementById('contactIdInput').value.trim();
+      const q = new URLSearchParams({ registryId, contactId });
+      const res = await fetch('/api/contact/inquire?' + q.toString());
+      const data = await res.json();
+      showJson(data);
+      if (data.success) {
+        fillFormFromInquire(data);
+      } else {
+        alert(data.message || 'contact.inquire failed');
+      }
+    }
+
+    document.getElementById('toStep2Btn').addEventListener('click', async () => {
+      const cid = document.getElementById('contactIdInput').value.trim();
+      if (!cid) {
+        alert('Enter a contact ID');
+        return;
+      }
+      document.getElementById('fContactId').value = cid;
+      showStep(2);
+      await loadInquire();
+    });
+
+    document.getElementById('reloadContactBtn').addEventListener('click', loadInquire);
+
+    document.getElementById('saveContactBtn').addEventListener('click', async () => {
+      const body = {
+        registryId: registryValue(),
+        contactId: document.getElementById('fContactId').value.trim(),
+        contact: {
+          name: document.getElementById('fName').value.trim(),
+          email: document.getElementById('fEmail').value.trim(),
+          organization: document.getElementById('fOrg').value.trim(),
+          address: document.getElementById('fAddress').value.trim(),
+          city: document.getElementById('fCity').value.trim(),
+          state: document.getElementById('fState').value.trim(),
+          postalcode: document.getElementById('fPostal').value.trim(),
+          countrycode: document.getElementById('fCountry').value.trim(),
+          phone: document.getElementById('fPhone').value.trim()
+        }
+      };
+      const { ok, data } = await apiJson('/api/contact/modify', 'POST', body);
+      showJson(data);
+      if (!ok) {
+        alert(data.message || 'contact.modify failed');
+      }
+    });
+
+    document.getElementById('toStep3Btn').addEventListener('click', () => showStep(3));
+    document.getElementById('backStep1Btn').addEventListener('click', () => showStep(1));
+    document.getElementById('backStep2Btn').addEventListener('click', () => showStep(2));
+
+    document.getElementById('batchCheckBtn').addEventListener('click', async () => {
+      const lines = document.getElementById('domainLines').value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const body = {
+        registryId: registryValue(),
+        contactId: document.getElementById('fContactId').value.trim(),
+        domainNames: lines
+      };
+      const { ok, data } = await apiJson('/api/domain/inquire-batch-by-contact', 'POST', body);
+      showJson(data);
+      const table = document.getElementById('batchTable');
+      const tbody = document.getElementById('batchTableBody');
+      tbody.innerHTML = '';
+      if (!ok) {
+        table.classList.add('d-none');
+        alert(data.message || 'Batch request failed');
+        return;
+      }
+      table.classList.remove('d-none');
+      (data.results || []).forEach((row) => {
+        const mainTr = document.createElement('tr');
+        const statusText =
+          Array.isArray(row.domainStatuses) && row.domainStatuses.length
+            ? row.domainStatuses.join(', ')
+            : '—';
+        mainTr.innerHTML =
+          '<td>' + escapeHtml(row.domainName) + '</td>' +
+          '<td>' + (row.success ? 'Yes' : 'No') + '</td>' +
+          '<td>' + (row.contactLinked ? '<span class="text-success">Yes</span>' : '<span class="text-danger">No</span>') + '</td>' +
+          '<td>' + escapeHtml((row.matchedRoles || []).join(', ')) + '</td>' +
+          '<td>' + escapeHtml(row.expirationDate || '—') + '</td>' +
+          '<td class="small font-monospace text-break">' + escapeHtml(statusText) + '</td>' +
+          '<td class="text-end text-nowrap"></td>';
+        const tdAction = mainTr.querySelector('td:last-child');
+        const expandTr = document.createElement('tr');
+        expandTr.className = 'domain-edit-panel d-none';
+        const tdExpand = document.createElement('td');
+        tdExpand.colSpan = 7;
+        tdExpand.appendChild(buildDomainEditPanel(row.domainName));
+        expandTr.appendChild(tdExpand);
+
+        const renewTr = document.createElement('tr');
+        renewTr.className = 'domain-renewal-panel d-none';
+        const tdRenew = document.createElement('td');
+        tdRenew.colSpan = 7;
+        tdRenew.appendChild(buildDomainRenewalPanel(row.domainName, row.domainId, row.domainNameI15d));
+        renewTr.appendChild(tdRenew);
+
+        const statusTr = document.createElement('tr');
+        statusTr.className = 'domain-status-panel d-none';
+        const tdStatus = document.createElement('td');
+        tdStatus.colSpan = 7;
+        tdStatus.appendChild(buildDomainStatusPanel(row.domainName, row.domainId, row.domainNameI15d, row.domainStatuses || []));
+        statusTr.appendChild(tdStatus);
+
+        if (row.success) {
+          const wrapBtn = document.createElement('div');
+          wrapBtn.className = 'd-inline-flex gap-1 flex-wrap justify-content-end';
+
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.className = 'btn btn-sm btn-outline-primary';
+          editBtn.textContent = 'Edit';
+          editBtn.setAttribute('aria-expanded', 'false');
+
+          const renewBtn = document.createElement('button');
+          renewBtn.type = 'button';
+          renewBtn.className = 'btn btn-sm btn-outline-dark';
+          renewBtn.textContent = 'Renewal';
+          renewBtn.setAttribute('aria-expanded', 'false');
+
+          const statusBtn = document.createElement('button');
+          statusBtn.type = 'button';
+          statusBtn.className = 'btn btn-sm btn-outline-secondary';
+          statusBtn.textContent = 'Status';
+          statusBtn.setAttribute('aria-expanded', 'false');
+
+          function closeOtherPanels(except) {
+            if (except !== 'edit') {
+              expandTr.classList.add('d-none');
+              editBtn.textContent = 'Edit';
+              editBtn.setAttribute('aria-expanded', 'false');
+            }
+            if (except !== 'renew') {
+              renewTr.classList.add('d-none');
+              renewBtn.textContent = 'Renewal';
+              renewBtn.setAttribute('aria-expanded', 'false');
+            }
+            if (except !== 'status') {
+              statusTr.classList.add('d-none');
+              statusBtn.textContent = 'Status';
+              statusBtn.setAttribute('aria-expanded', 'false');
+            }
+          }
+
+          editBtn.addEventListener('click', () => {
+            closeOtherPanels('edit');
+            const nowHidden = expandTr.classList.toggle('d-none');
+            editBtn.setAttribute('aria-expanded', nowHidden ? 'false' : 'true');
+            editBtn.textContent = nowHidden ? 'Edit' : 'Hide';
+          });
+
+          renewBtn.addEventListener('click', () => {
+            closeOtherPanels('renew');
+            const nowHidden = renewTr.classList.toggle('d-none');
+            renewBtn.setAttribute('aria-expanded', nowHidden ? 'false' : 'true');
+            renewBtn.textContent = nowHidden ? 'Renewal' : 'Hide';
+          });
+
+          statusBtn.addEventListener('click', () => {
+            closeOtherPanels('status');
+            const nowHidden = statusTr.classList.toggle('d-none');
+            statusBtn.setAttribute('aria-expanded', nowHidden ? 'false' : 'true');
+            statusBtn.textContent = nowHidden ? 'Status' : 'Hide';
+          });
+
+          wrapBtn.appendChild(editBtn);
+          wrapBtn.appendChild(renewBtn);
+          wrapBtn.appendChild(statusBtn);
+          tdAction.appendChild(wrapBtn);
+        } else {
+          tdAction.innerHTML = '<span class="text-muted small">—</span>';
+        }
+
+        tbody.appendChild(mainTr);
+        tbody.appendChild(expandTr);
+        tbody.appendChild(renewTr);
+        tbody.appendChild(statusTr);
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Domain transfer — registrar to registrar</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      line-height: 1.55;
+      max-width: 56rem;
+      margin: 0 auto;
+      padding: 1.5rem 1.25rem 3rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-top: 0;
+    }
+    h2 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-top: 2rem;
+    }
+    p, ul {
+      margin: 0.75rem 0;
+    }
+    ul {
+      padding-left: 1.25rem;
+    }
+    .diagram {
+      margin: 1.25rem 0;
+      overflow-x: auto;
+      border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+      border-radius: 8px;
+      padding: 1rem;
+      background: color-mix(in srgb, Canvas 97%, CanvasText);
+    }
+    footer {
+      margin-top: 2.5rem;
+      font-size: 0.85rem;
+      opacity: 0.75;
+    }
+  </style>
+</head>
+<body>
+  <h1>How a domain moves from one registrar to another</h1>
+  <p>
+    This is the usual <strong>inter-registrar transfer</strong> picture for many
+    <strong>gTLDs</strong> (for example <code>.com</code>, <code>.net</code>, <code>.org</code>).
+    The <strong>registry</strong> (runs the TLD) holds the authoritative record; registrars are
+    retail agents. The domain’s <strong>DNS</strong> can stay on the same nameservers during
+    transfer—only the sponsoring registrar at the registry changes.
+  </p>
+
+  <h2>Typical steps</h2>
+  <ol>
+    <li>
+      At the <strong>losing registrar</strong>: remove transfer lock, obtain the
+      <strong>EPP / auth code</strong>, confirm <strong>registrant contact email</strong> (used for approval notices).
+    </li>
+    <li>
+      At the <strong>gaining registrar</strong>: start a transfer, enter the domain and auth code, pay if required.
+    </li>
+    <li>
+      The <strong>registry</strong> processes the request; the losing side often emails the registrant
+      (<strong>FOA</strong> — form of authorization). A <strong>pending transfer</strong> window applies
+      (often around five days for many gTLDs unless policy or action shortens it).
+    </li>
+    <li>
+      If not rejected per policy, the registry completes the transfer; the domain is now sponsored by the
+      new registrar (often with a one-year renewal extension on the registration term, per product rules).
+    </li>
+  </ol>
+  <p>
+    <strong>ICANN gTLD policy</strong> also restricts transfers in some cases—for example within
+    <strong>60 days</strong> of initial registration or a prior transfer (with limited exceptions).
+    <strong>ccTLDs</strong> (country codes) and some TLDs use different rules, interfaces, and timelines.
+  </p>
+
+  <h2>Flow overview</h2>
+  <div class="diagram">
+    <div class="mermaid">
+flowchart LR
+  subgraph Prep["At losing registrar"]
+    UNLOCK[Remove\ntransfer lock]
+    CODE[Get EPP /\nauth code]
+    UNLOCK --> CODE
+  end
+
+  subgraph Start["At gaining registrar"]
+    ORDER[Submit transfer +\nauth code + payment]
+  end
+
+  subgraph Central["Registry TLD"]
+    VAL[Validate request]
+    PEND[Pending transfer\nperiod]
+    DONE[Complete:\nsponsor = new registrar]
+    VAL --> PEND --> DONE
+  end
+
+  R[Registrant] --> UNLOCK
+  CODE --> ORDER
+  ORDER --> VAL
+  DONE --> R
+    </div>
+  </div>
+
+  <h2>Sequence (simplified)</h2>
+  <div class="diagram">
+    <div class="mermaid">
+sequenceDiagram
+  participant Reg as Registrant
+  participant Lose as Losing registrar
+  participant Gain as Gaining registrar
+  participant Ry as Registry TLD
+
+  Reg->>Lose: Unlock domain
+  Reg->>Lose: Request auth code
+  Lose-->>Reg: EPP auth code
+
+  Reg->>Gain: Order transfer + provide code
+  Gain->>Ry: Transfer request with auth
+
+  Ry->>Lose: Notify pending transfer
+  Lose-->>Reg: FOA email approve or info
+  Note over Ry: Pending window runs
+
+  alt Transfer completes
+    Ry-->>Gain: Success sponsor updated
+    Gain-->>Reg: Transfer complete
+  else Rejected or blocked
+    Ry-->>Gain: Failure reason
+    Gain-->>Reg: Transfer failed
+  end
+    </div>
+  </div>
+
+  <footer>
+    Educational overview only; exact emails, timing, and fees depend on TLD, registry, and both registrars.
+    Diagrams use <a href="https://mermaid.js.org/">Mermaid</a> (jsDelivr). Open online in a browser to render.
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "neutral",
+      flowchart: { useMaxWidth: true, htmlLabels: true },
+      sequence: { useMaxWidth: true },
+    });
+  </script>
+</body>
+</html>

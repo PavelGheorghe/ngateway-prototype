@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NGateway Domain Wizard</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+    crossorigin="anonymous"
+  >
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { background: #f8f9fa; }
+    .viewport-wrapper { min-height: 100vh; width: 100%; padding: 1.25rem; }
+    .step-pane { display: none; }
+    .step-pane.active { display: block; }
+    .step-indicator { border: 1px solid #dbe1ea; border-radius: 8px; background: #fff; padding: .65rem .8rem; height: 100%; }
+    .step-indicator.active { border-left: 4px solid #0d6efd; }
+    .step-indicator.done { border-left: 4px solid #198754; }
+    .step-indicator.error { border-left: 4px solid #dc3545; }
+    #responseView { min-height: 160px; max-height: 320px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <main class="viewport-wrapper d-flex flex-column">
+    <div class="container-fluid px-0">
+      <div class="row g-3 mb-3">
+        <div class="col-12">
+          <div class="card shadow-sm border-0">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                <div>
+                  <h1 class="h4 mb-2">NGateway Domain Creation Wizard</h1>
+                  <p class="mb-0 text-secondary">
+                    Full-screen multi-step flow for iframe embedding. Sequence: <code>domain.check</code> → contact step (<code>contact.create</code> <em>or</em> existing handle) → <code>host.create</code> → <code>domain.create</code>.
+                  </p>
+                </div>
+                <button id="resetWizardBtn" class="btn btn-outline-secondary btn-sm">Reset wizard</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-6 col-xl-3"><div id="indicator-step1" class="step-indicator"><div class="fw-semibold">1. domain.check</div><div class="small text-secondary">Availability + pricing pre-check</div></div></div>
+        <div class="col-12 col-md-6 col-xl-3"><div id="indicator-step2" class="step-indicator"><div class="fw-semibold">2. Contact</div><div class="small text-secondary">Create new or use existing ID</div></div></div>
+        <div class="col-12 col-md-6 col-xl-3"><div id="indicator-step3" class="step-indicator"><div class="fw-semibold">3. host.create</div><div class="small text-secondary">Create nameserver host object</div></div></div>
+        <div class="col-12 col-md-6 col-xl-3"><div id="indicator-step4" class="step-indicator"><div class="fw-semibold">4. domain.create</div><div class="small text-secondary">Final domain creation command</div></div></div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-12 col-xl-8">
+          <div class="card shadow-sm border-0">
+            <div class="card-body">
+              <div id="step1" class="step-pane">
+                <h2 class="h6">Step 1 - Run <code>domain.check</code></h2>
+                <p class="text-secondary small mb-3">This must run before domain creation, especially for claims/notice flows.</p>
+                <div class="row g-2">
+                  <div class="col-12 col-md-6"><label class="form-label">Domain name</label><input id="domainName" class="form-control" placeholder="example.com"></div>
+                  <div class="col-12 col-md-3"><label class="form-label">Registry ID</label><input id="registryId" class="form-control" value=".com"></div>
+                  <div class="col-12 col-md-3"><label class="form-label">Launch phase <span class="text-secondary fw-normal">(optional)</span></label><input id="launchPhase" class="form-control" placeholder="e.g. open" autocomplete="off"></div>
+                </div>
+                <div class="mt-3"><button id="runStep1Btn" class="btn btn-primary">Run domain.check</button></div>
+              </div>
+
+              <div id="step2" class="step-pane">
+                <h2 class="h6">Step 2 - Contact for <code>domain.create</code></h2>
+                <p class="text-secondary small mb-2">Create a new contact or reuse a handle for the <strong>same registry as step 1</strong> (<code>registry.id</code>). For existing IDs, the wizard runs <code>contact.inquire</code> against that registry before continuing; the handle must be 3–16 characters for <code>domain.create</code>.</p>
+                <div class="mb-3">
+                  <label class="form-label">Contact source</label>
+                  <select id="contactMode" class="form-select form-select-sm" style="max-width:22rem">
+                    <option value="create">Create new contact (contact.create)</option>
+                    <option value="existing">Use existing contact ID</option>
+                  </select>
+                </div>
+                <div id="contactExistingFields" class="row g-2 d-none mb-2">
+                  <div class="col-12 col-md-6">
+                    <label class="form-label">Existing contact ID / handle</label>
+                    <input id="existingContactId" class="form-control font-monospace" placeholder="e.g. c10ea947000" autocomplete="off">
+                  </div>
+                </div>
+                <div id="contactCreateFields" class="row g-2">
+                  <div class="col-12 col-md-6"><label class="form-label">Name</label><input id="contactName" class="form-control"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Email</label><input id="contactEmail" class="form-control"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Address</label><input id="contactAddress" class="form-control"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">City</label><input id="contactCity" class="form-control"></div>
+                  <div class="col-12 col-md-4"><label class="form-label">State</label><input id="contactState" class="form-control"></div>
+                  <div class="col-12 col-md-4"><label class="form-label">Postal code</label><input id="contactPostal" class="form-control"></div>
+                  <div class="col-12 col-md-4"><label class="form-label">Country code</label><input id="contactCountry" class="form-control" value="US"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Phone</label><input id="contactPhone" class="form-control" placeholder="+1.0000000000"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Organization</label><input id="contactOrg" class="form-control"></div>
+                </div>
+                <div class="mt-3"><button id="runStep2Btn" class="btn btn-primary">Run contact.create</button></div>
+              </div>
+
+              <div id="step3" class="step-pane">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <h2 class="h6 m-0">Step 3 - Run <code>host.create</code></h2>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" id="skipHostCreate"><label class="form-check-label small" for="skipHostCreate">Skip host.create (optional)</label></div>
+                </div>
+                <p class="text-secondary small mb-3">Use this step when registry/domain setup requires host objects.</p>
+                <div class="row g-2">
+                  <div class="col-12 col-md-6"><label class="form-label">Host name</label><input id="hostName" class="form-control" placeholder="ns1.example.com"></div>
+                  <div class="col-12 col-md-3"><label class="form-label">IPv4</label><input id="hostIpv4" class="form-control" placeholder="1.2.3.4"></div>
+                  <div class="col-12 col-md-3"><label class="form-label">IPv6</label><input id="hostIpv6" class="form-control" placeholder="2001:db8::1"></div>
+                </div>
+                <div class="mt-3"><button id="runStep3Btn" class="btn btn-primary">Run host.create</button></div>
+              </div>
+
+              <div id="step4" class="step-pane">
+                <h2 class="h6">Step 4 - Run <code>domain.create</code></h2>
+                <p class="text-secondary small mb-3">Requires successful <code>domain.check</code> and step 2 (new <code>contact.create</code> or existing contact ID). Host step is optional when skipped. The API maps this contact ID to <code>registrant</code>, <code>admin</code>, <code>tech</code>, and <code>billing</code> on <code>domain.create</code> (same handle unless you pass <code>contact.techId</code> / <code>contact.billingId</code> in the JSON API). Nameservers (NS1–NS4) are optional unless <code>CORE_DOMAIN_CREATE_NS_MANDATORY_REGISTRIES</code> lists this registry. Registries such as <code>.eus</code> (doteus) often require <code>eligibility.intended-use</code> for the current launch phase; use the field below and keep <code>launch.phase</code> aligned with step&nbsp;1 when you set it.</p>
+                <p id="nsStep4Hint" class="small text-warning mb-3 d-none"></p>
+                <div class="row g-2">
+                  <div class="col-12 col-md-4"><label class="form-label">Period value</label><input id="periodValue" type="number" min="1" max="99" class="form-control" value="1"></div>
+                  <div class="col-12 col-md-4"><label class="form-label">Period unit</label><select id="periodUnit" class="form-select"><option value="y" selected>Year(s)</option><option value="m">Month(s)</option></select></div>
+                  <div class="col-12 col-md-4"><label class="form-label">Contact ID (auto-filled)</label><input id="contactIdView" class="form-control" readonly></div>
+                  <div class="col-12 col-md-6"><label class="form-label">NS1 (optional)</label><input id="ns1" class="form-control" placeholder="ns1.example.com"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">NS2 (optional)</label><input id="ns2" class="form-control" placeholder="ns2.example.com"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">NS3 (optional)</label><input id="ns3" class="form-control" placeholder="ns3.example.com"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">NS4 (optional)</label><input id="ns4" class="form-control" placeholder="ns4.example.com"></div>
+                  <div class="col-12"><label class="form-label">Intended use <span class="text-secondary fw-normal">(eligibility.intended-use, e.g. .eus)</span></label><textarea id="eligibilityIntendedUse" class="form-control" rows="2" placeholder="Short description of how the domain will be used"></textarea></div>
+                </div>
+                <div class="mt-3"><button id="runStep4Btn" class="btn btn-success">Run domain.create</button></div>
+              </div>
+
+              <div class="d-flex justify-content-between mt-4">
+                <button id="prevStepBtn" class="btn btn-outline-secondary">Back</button>
+                <div id="gateMessage" class="small text-secondary align-self-center"></div>
+                <button id="nextStepBtn" class="btn btn-outline-primary">Next</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+          <div class="card shadow-sm border-0 h-100">
+            <div class="card-body d-flex flex-column">
+              <h2 class="h6">Response / Progress</h2>
+              <div class="small text-secondary mb-2">Latest API response and persisted wizard state.</div>
+              <pre id="responseView" class="bg-dark text-light rounded p-2 flex-grow-1 mb-0">{}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script id="nsMandatoryRegistriesJson" type="application/json">{{ nsMandatoryRegistries|json_encode|raw }}</script>
+  <script>
+    const STORAGE_KEY = 'ngatewayWizardState.v1';
+    const STEP_IDS = ['step1', 'step2', 'step3', 'step4'];
+    const INDICATOR_IDS = ['indicator-step1', 'indicator-step2', 'indicator-step3', 'indicator-step4'];
+    const DEFAULT_STATE = {
+      currentStep: 1,
+      steps: { step1: 'pending', step2: 'pending', step3: 'pending', step4: 'pending' },
+      forms: {
+        domainName: '', registryId: '.com', contactMode: 'create', existingContactId: '',
+        contactName: '', contactEmail: '', contactAddress: '',
+        contactCity: '', contactState: '', contactPostal: '', contactCountry: 'US', contactPhone: '',
+        contactOrg: '', hostName: '', hostIpv4: '', hostIpv6: '', skipHostCreate: false,
+        periodValue: '1', periodUnit: 'y', ns1: '', ns2: '', ns3: '', ns4: '',
+        launchPhase: '', eligibilityIntendedUse: ''
+      },
+      flow: { contactId: '', lastResponse: {} }
+    };
+    let state = loadState();
+
+    let nsMandatoryRegistries = [];
+    (function loadNsMandatory() {
+      const el = document.getElementById('nsMandatoryRegistriesJson');
+      if (!el) return;
+      try {
+        nsMandatoryRegistries = JSON.parse(el.textContent || '[]');
+        if (!Array.isArray(nsMandatoryRegistries)) nsMandatoryRegistries = [];
+      } catch (_e) {
+        nsMandatoryRegistries = [];
+      }
+    })();
+
+    function isNsMandatoryForRegistry(reg) {
+      const n = normalizeRegistry(reg).toLowerCase();
+      return nsMandatoryRegistries.some((r) => String(r).toLowerCase() === n);
+    }
+
+    function hasAnyNsInForm() {
+      return ['ns1', 'ns2', 'ns3', 'ns4'].some((k) => String(state.forms[k] || '').trim() !== '');
+    }
+
+    function updateNsStep4Hint() {
+      const hint = document.getElementById('nsStep4Hint');
+      if (!hint) return;
+      if (state.currentStep !== 4) {
+        hint.classList.add('d-none');
+        return;
+      }
+      const reg = normalizeRegistry(state.forms.registryId);
+      if (isNsMandatoryForRegistry(reg) && !hasAnyNsInForm()) {
+        hint.textContent = 'This registry requires at least one nameserver (NS1–NS4), or set CORE_DEFAULT_NS1/CORE_DEFAULT_NS2 on the server.';
+        hint.classList.remove('d-none');
+      } else {
+        hint.classList.add('d-none');
+      }
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return structuredClone(DEFAULT_STATE);
+        const parsed = JSON.parse(raw);
+        return {
+          ...structuredClone(DEFAULT_STATE),
+          ...parsed,
+          steps: { ...DEFAULT_STATE.steps, ...(parsed.steps || {}) },
+          forms: { ...DEFAULT_STATE.forms, ...(parsed.forms || {}) },
+          flow: { ...DEFAULT_STATE.flow, ...(parsed.flow || {}) }
+        };
+      } catch (_e) {
+        return structuredClone(DEFAULT_STATE);
+      }
+    }
+
+    function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    function normalizeRegistry(value) { const v = String(value || '').trim(); return !v ? '.com' : (v.startsWith('.') ? v : '.' + v); }
+    function domainCheckName(domainName, registryId) { const dn = String(domainName || '').trim().toLowerCase(); const reg = normalizeRegistry(registryId).toLowerCase(); return dn.endsWith(reg) ? dn.slice(0, dn.length - reg.length) : dn; }
+
+    function setResponse(data) {
+      state.flow.lastResponse = data;
+      document.getElementById('responseView').textContent = JSON.stringify(data, null, 2);
+      saveState();
+    }
+
+    function api(path, method, body) {
+      return fetch(path, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+      }).then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        return data;
+      });
+    }
+
+    function canAccessStep(stepNumber) {
+      if (stepNumber <= 1) return true;
+      if (stepNumber === 2) return state.steps.step1 === 'done';
+      if (stepNumber === 3) return state.steps.step2 === 'done';
+      if (stepNumber === 4) return state.steps.step1 === 'done' && state.steps.step2 === 'done' && (state.forms.skipHostCreate || state.steps.step3 === 'done');
+      return true;
+    }
+
+    function updateIndicators() {
+      for (let i = 0; i < INDICATOR_IDS.length; i++) {
+        const key = 'step' + (i + 1);
+        const el = document.getElementById(INDICATOR_IDS[i]);
+        el.classList.remove('active', 'done', 'error');
+        if (state.currentStep === i + 1) el.classList.add('active');
+        if (state.steps[key] === 'done') el.classList.add('done');
+        if (state.steps[key] === 'error') el.classList.add('error');
+      }
+    }
+
+    function updateStepVisibility() {
+      for (let i = 0; i < STEP_IDS.length; i++) {
+        const pane = document.getElementById(STEP_IDS[i]);
+        pane.classList.toggle('active', i + 1 === state.currentStep);
+      }
+      document.getElementById('prevStepBtn').disabled = state.currentStep === 1;
+      document.getElementById('nextStepBtn').disabled = state.currentStep === 4;
+      document.getElementById('contactIdView').value = state.flow.contactId || '';
+      document.getElementById('gateMessage').textContent = canAccessStep(state.currentStep) ? '' : 'Complete previous required steps first.';
+      updateNsStep4Hint();
+      updateIndicators();
+      saveState();
+    }
+
+    function applyContactModeUi() {
+      const mode = state.forms.contactMode === 'existing' ? 'existing' : 'create';
+      if (state.forms.contactMode !== mode) state.forms.contactMode = mode;
+      const createFields = document.getElementById('contactCreateFields');
+      const existingFields = document.getElementById('contactExistingFields');
+      const btn = document.getElementById('runStep2Btn');
+      const sel = document.getElementById('contactMode');
+      if (sel && sel.value !== mode) sel.value = mode;
+      if (createFields) createFields.classList.toggle('d-none', mode === 'existing');
+      if (existingFields) existingFields.classList.toggle('d-none', mode !== 'existing');
+      if (btn) btn.textContent = mode === 'existing' ? 'Verify contact (contact.inquire)' : 'Run contact.create';
+    }
+
+    function fillFromState() {
+      Object.keys(DEFAULT_STATE.forms).forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (el.type === 'checkbox') el.checked = Boolean(state.forms[id]);
+        else el.value = state.forms[id] ?? '';
+      });
+      applyContactModeUi();
+      document.getElementById('responseView').textContent = JSON.stringify(state.flow.lastResponse || {}, null, 2);
+    }
+
+    function bindInputPersistence() {
+      Object.keys(DEFAULT_STATE.forms).forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const sync = () => {
+          if (id === 'contactMode') {
+            const next = el.value === 'existing' ? 'existing' : 'create';
+            const prev = state.forms.contactMode;
+            state.forms.contactMode = next;
+            if (prev !== next && state.steps.step2 === 'done') {
+              state.steps.step2 = 'pending';
+              state.flow.contactId = '';
+            }
+            applyContactModeUi();
+            saveState();
+            updateStepVisibility();
+            return;
+          }
+          if (id === 'existingContactId' && state.forms.contactMode === 'existing' && state.steps.step2 === 'done') {
+            state.steps.step2 = 'pending';
+            state.flow.contactId = '';
+          }
+          state.forms[id] = el.type === 'checkbox' ? el.checked : el.value;
+          saveState();
+          updateStepVisibility();
+        };
+        el.addEventListener('input', sync);
+        el.addEventListener('change', sync);
+      });
+    }
+
+    async function runStep1() {
+      const domainName = String(state.forms.domainName || '').trim();
+      const registryId = normalizeRegistry(state.forms.registryId);
+      if (!domainName) {
+        state.steps.step1 = 'error';
+        setResponse({ success: false, code: 'invalid', message: 'Domain name is required for step 1.' });
+        return updateStepVisibility();
+      }
+      const launchPhase = String(state.forms.launchPhase || '').trim();
+      const checkBody = { domains: [domainCheckName(domainName, registryId)], registryId: registryId };
+      if (launchPhase) checkBody.launchPhase = launchPhase;
+      const result = await api('/api/domain/check', 'POST', checkBody);
+      state.steps.step1 = result.success ? 'done' : 'error';
+      setResponse(result);
+      updateStepVisibility();
+    }
+
+    async function runStep2() {
+      if (state.steps.step1 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'Run domain.check successfully before step 2.' });
+      if (state.forms.contactMode === 'existing') {
+        const cid = String(state.forms.existingContactId || '').trim();
+        if (cid.length < 3 || cid.length > 16) {
+          state.steps.step2 = 'error';
+          setResponse({ success: false, code: 'invalid', message: 'Existing contact ID must be 3–16 characters (gateway rule for domain.create).' });
+          return updateStepVisibility();
+        }
+        const reg = normalizeRegistry(state.forms.registryId);
+        const runBtn = document.getElementById('runStep2Btn');
+        if (runBtn) runBtn.disabled = true;
+        const q = new URLSearchParams({ registryId: reg, contactId: cid });
+        let inquireRes;
+        try {
+          inquireRes = await fetch('/api/contact/inquire?' + q.toString()).then((r) => r.json());
+        } catch (_e) {
+          inquireRes = { success: false, code: 'network', message: 'contact.inquire request failed.' };
+        } finally {
+          if (runBtn) runBtn.disabled = false;
+        }
+        if (!inquireRes.success) {
+          state.steps.step2 = 'error';
+          state.flow.contactId = '';
+          setResponse({
+            success: false,
+            code: inquireRes.code || 'inquire_failed',
+            message: inquireRes.message || 'contact.inquire failed — handle may not exist for this registry.',
+            registryId: reg,
+            contactId: cid,
+            contactInquire: inquireRes
+          });
+          return updateStepVisibility();
+        }
+        state.flow.contactId = cid;
+        state.steps.step2 = 'done';
+        setResponse({
+          success: true,
+          code: 'existing_contact_verified',
+          message: 'Contact verified for registry ' + reg + ' via contact.inquire. contact.create was not called.',
+          registryId: reg,
+          contactId: cid,
+          contactInquire: inquireRes
+        });
+        return updateStepVisibility();
+      }
+      const result = await api('/api/contact/create', 'POST', {
+        registryId: normalizeRegistry(state.forms.registryId),
+        contact: {
+          name: String(state.forms.contactName || '').trim(),
+          email: String(state.forms.contactEmail || '').trim(),
+          address: String(state.forms.contactAddress || '').trim(),
+          city: String(state.forms.contactCity || '').trim(),
+          state: String(state.forms.contactState || '').trim(),
+          postalcode: String(state.forms.contactPostal || '').trim(),
+          countrycode: String(state.forms.contactCountry || '').trim(),
+          phone: String(state.forms.contactPhone || '').trim(),
+          organization: String(state.forms.contactOrg || '').trim()
+        }
+      });
+      state.steps.step2 = result.success ? 'done' : 'error';
+      state.flow.contactId = result.contactId || '';
+      setResponse(result);
+      updateStepVisibility();
+    }
+
+    async function runStep3() {
+      if (state.steps.step2 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'Complete step 2 (contact) successfully before step 3.' });
+      if (state.forms.skipHostCreate) {
+        state.steps.step3 = 'done';
+        setResponse({ success: true, code: 'skipped', message: 'host.create skipped by user (optional).' });
+        return updateStepVisibility();
+      }
+      const payload = {
+        registryId: normalizeRegistry(state.forms.registryId),
+        hostName: String(state.forms.hostName || '').trim(),
+        ipv4: String(state.forms.hostIpv4 || '').trim(),
+        ipv6: String(state.forms.hostIpv6 || '').trim()
+      };
+      const result = await api('/api/host/create', 'POST', payload);
+      state.steps.step3 = result.success ? 'done' : 'error';
+      if (result.success && payload.hostName && !state.forms.ns1) state.forms.ns1 = payload.hostName;
+      setResponse(result);
+      updateStepVisibility();
+      fillFromState();
+    }
+
+    async function runStep4() {
+      if (state.steps.step1 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'domain.check must succeed before domain.create.' });
+      if (state.steps.step2 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'Step 2 must be complete (contact.create or existing contact ID) before domain.create.' });
+      if (!state.forms.skipHostCreate && state.steps.step3 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'host.create must succeed, or mark it as skipped.' });
+      const domainName = String(state.forms.domainName || '').trim();
+      if (!domainName) return setResponse({ success: false, code: 'invalid', message: 'Domain name is required for step 4.' });
+      if (!state.flow.contactId) return setResponse({ success: false, code: 'invalid', message: 'No contactId available from step 2.' });
+
+      const reg = normalizeRegistry(state.forms.registryId);
+      if (isNsMandatoryForRegistry(reg) && !hasAnyNsInForm()) {
+        setResponse({ success: false, code: 'invalid', message: 'Nameservers are required for this registry. Enter NS1–NS4 or set CORE_DEFAULT_NS1/CORE_DEFAULT_NS2.' });
+        return updateStepVisibility();
+      }
+
+      const launchPhase = String(state.forms.launchPhase || '').trim();
+      const intended = String(state.forms.eligibilityIntendedUse || '').trim();
+      const createBody = {
+        domainName: domainName,
+        registryId: normalizeRegistry(state.forms.registryId),
+        periodValue: Number(state.forms.periodValue || 1),
+        periodUnit: String(state.forms.periodUnit || 'y'),
+        contact: { id: state.flow.contactId },
+        ns1: String(state.forms.ns1 || '').trim() || undefined,
+        ns2: String(state.forms.ns2 || '').trim() || undefined,
+        ns3: String(state.forms.ns3 || '').trim() || undefined,
+        ns4: String(state.forms.ns4 || '').trim() || undefined
+      };
+      if (launchPhase) createBody.launchPhase = launchPhase;
+      if (intended) createBody.eligibilityIntendedUse = intended;
+      const result = await api('/api/domain/create', 'POST', createBody);
+      state.steps.step4 = result.success ? 'done' : 'error';
+      setResponse(result);
+      updateStepVisibility();
+    }
+
+    function goNext() { const n = Math.min(4, state.currentStep + 1); if (canAccessStep(n)) state.currentStep = n; updateStepVisibility(); }
+    function goBack() { state.currentStep = Math.max(1, state.currentStep - 1); updateStepVisibility(); }
+    function resetWizard() { state = structuredClone(DEFAULT_STATE); saveState(); fillFromState(); updateStepVisibility(); setResponse({}); }
+
+    document.getElementById('runStep1Btn').addEventListener('click', runStep1);
+    document.getElementById('runStep2Btn').addEventListener('click', runStep2);
+    document.getElementById('runStep3Btn').addEventListener('click', runStep3);
+    document.getElementById('runStep4Btn').addEventListener('click', runStep4);
+    document.getElementById('prevStepBtn').addEventListener('click', goBack);
+    document.getElementById('nextStepBtn').addEventListener('click', goNext);
+    document.getElementById('resetWizardBtn').addEventListener('click', resetWizard);
+
+    bindInputPersistence();
+    fillFromState();
+    updateStepVisibility();
+  </script>
+</body>
+</html>

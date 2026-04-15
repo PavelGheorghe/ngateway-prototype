@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NGateway Domain Wizard (AWS Route53)</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+    crossorigin="anonymous"
+  >
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { background: #f8f9fa; }
+    .viewport-wrapper { min-height: 100vh; width: 100%; padding: 1.25rem; }
+    .step-pane { display: none; }
+    .step-pane.active { display: block; }
+    .step-indicator { border: 1px solid #dbe1ea; border-radius: 8px; background: #fff; padding: .65rem .8rem; height: 100%; }
+    .step-indicator.active { border-left: 4px solid #0d6efd; }
+    .step-indicator.done { border-left: 4px solid #198754; }
+    .step-indicator.error { border-left: 4px solid #dc3545; }
+    #responseView { min-height: 160px; max-height: 420px; overflow: auto; }
+    #step3ResultSummary .table { font-size: 0.8125rem; }
+    #step3CoreExtensionPre { max-height: 220px; overflow: auto; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <main class="viewport-wrapper d-flex flex-column">
+    <div class="container-fluid px-0">
+      <div class="row g-3 mb-3">
+        <div class="col-12">
+          <div class="card shadow-sm border-0">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                <div>
+                  <h1 class="h4 mb-2">NGateway Domain Creation Wizard (AWS Route53)</h1>
+                  <p class="mb-0 text-secondary">
+                    Same CORE flow as the standard wizard, but step 3 creates a <strong>public Route53 hosted zone</strong> via <code>POST /api/aws/route53/hosted-zone</code>. <strong>No KMS key is required</strong> unless you enable DNSSEC in step 3; then Route 53 needs the ARN of an <strong>existing</strong> KMS signing key (reuse the same ARN across zones — you do not need a new customer-managed CMK per domain). Optional env <code>AWS_ROUTE53_DNSSEC_KMS_KEY_ARN</code> or the ARN field in step 3. Step 4 pre-fills nameservers and, when step 3 returns DNSSEC, automatically sends <code>dnssecCoreExtension</code> (DS + DNSKEY / public key) on <code>domain.create</code>, like NS. Configure <code>AWS_ACCESS_KEY_ID</code>, <code>AWS_SECRET_ACCESS_KEY</code>, and <code>AWS_ROUTE53_REGION</code> in <code>.env</code>.
+                  </p>
+                </div>
+                <button id="resetWizardBtn" class="btn btn-outline-secondary btn-sm">Reset wizard</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-6 col-xl-3"><div id="indicator-step1" class="step-indicator"><div class="fw-semibold">1. domain.check</div><div class="small text-secondary">Availability + pricing pre-check</div></div></div>
+        <div class="col-12 col-md-6 col-xl-3"><div id="indicator-step2" class="step-indicator"><div class="fw-semibold">2. Contact</div><div class="small text-secondary">Create new or use existing ID</div></div></div>
+        <div class="col-12 col-md-6 col-xl-3"><div id="indicator-step3" class="step-indicator"><div class="fw-semibold">3. Route53 zone</div><div class="small text-secondary">Hosted zone + delegation NS</div></div></div>
+        <div class="col-12 col-md-6 col-xl-3"><div id="indicator-step4" class="step-indicator"><div class="fw-semibold">4. domain.create</div><div class="small text-secondary">AWS NS + DNSSEC ext. when set</div></div></div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-12 col-xl-8">
+          <div class="card shadow-sm border-0">
+            <div class="card-body">
+              <div id="step1" class="step-pane">
+                <h2 class="h6">Step 1 - Run <code>domain.check</code></h2>
+                <p class="text-secondary small mb-3">This must run before domain creation, especially for claims/notice flows.</p>
+                <div class="row g-2">
+                  <div class="col-12 col-md-6"><label class="form-label">Domain name</label><input id="domainName" class="form-control" placeholder="example.com"></div>
+                  <div class="col-12 col-md-3"><label class="form-label">Registry ID</label><input id="registryId" class="form-control" value=".com"></div>
+                  <div class="col-12 col-md-3"><label class="form-label">Launch phase <span class="text-secondary fw-normal">(optional)</span></label><input id="launchPhase" class="form-control" placeholder="e.g. open" autocomplete="off"></div>
+                </div>
+                <div class="mt-3"><button id="runStep1Btn" class="btn btn-primary">Run domain.check</button></div>
+              </div>
+
+              <div id="step2" class="step-pane">
+                <h2 class="h6">Step 2 - Contact for <code>domain.create</code></h2>
+                <p class="text-secondary small mb-2">Create a new contact or reuse a handle for the <strong>same registry as step 1</strong> (<code>registry.id</code>). For existing IDs, the wizard runs <code>contact.inquire</code> against that registry before continuing; the handle must be 3–16 characters for <code>domain.create</code>.</p>
+                <div class="mb-3">
+                  <label class="form-label">Contact source</label>
+                  <select id="contactMode" class="form-select form-select-sm" style="max-width:22rem">
+                    <option value="create">Create new contact (contact.create)</option>
+                    <option value="existing">Use existing contact ID</option>
+                  </select>
+                </div>
+                <div id="contactExistingFields" class="row g-2 d-none mb-2">
+                  <div class="col-12 col-md-6">
+                    <label class="form-label">Existing contact ID / handle</label>
+                    <input id="existingContactId" class="form-control font-monospace" placeholder="e.g. c10ea947000" autocomplete="off">
+                  </div>
+                </div>
+                <div id="contactCreateFields" class="row g-2">
+                  <div class="col-12 col-md-6"><label class="form-label">Name</label><input id="contactName" class="form-control"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Email</label><input id="contactEmail" class="form-control"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Address</label><input id="contactAddress" class="form-control"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">City</label><input id="contactCity" class="form-control"></div>
+                  <div class="col-12 col-md-4"><label class="form-label">State</label><input id="contactState" class="form-control"></div>
+                  <div class="col-12 col-md-4"><label class="form-label">Postal code</label><input id="contactPostal" class="form-control"></div>
+                  <div class="col-12 col-md-4"><label class="form-label">Country code</label><input id="contactCountry" class="form-control" value="US"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Phone</label><input id="contactPhone" class="form-control" placeholder="+1.0000000000"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Organization</label><input id="contactOrg" class="form-control"></div>
+                </div>
+                <div class="mt-3"><button id="runStep2Btn" class="btn btn-primary">Run contact.create</button></div>
+              </div>
+
+              <div id="step3" class="step-pane">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <h2 class="h6 m-0">Step 3 - Route53 hosted zone</h2>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" id="skipRoute53HostedZone"><label class="form-check-label small" for="skipRoute53HostedZone">Skip Route53 (enter NS manually in step 4)</label></div>
+                </div>
+                <p class="text-secondary small mb-3">Creates a <strong>public</strong> hosted zone for the <strong>full domain</strong> (step 1 name + registry ID, same rule as <code>domain.create</code> — e.g. <code>gheorghepavel-aws</code> + <code>.eus</code> → <code>gheorghepavel-aws.eus</code>). On success, delegation name servers are stored and applied to NS1–NS4 in step 4. If the zone already exists, the API returns the current delegation set.</p>
+                <div class="mb-3 p-2 rounded border bg-white">
+                  <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="enableRoute53Dnssec">
+                    <label class="form-check-label small" for="enableRoute53Dnssec">Enable Route53 DNSSEC signing after zone creation (only then: use a KMS key ARN below, <code>AWS_ROUTE53_DNSSEC_KMS_KEY_ARN</code> in <code>.env</code>, or create a new key — one shared key is enough for many zones)</label>
+                  </div>
+                  <label class="form-label small mb-1">KMS key ARN <span class="text-secondary fw-normal">(optional; Route 53 DNSSEC keys must live in <code>us-east-1</code>)</span></label>
+                  <div class="d-flex flex-wrap gap-2 align-items-stretch mb-1">
+                    <input id="dnssecKmsKeyArn" class="form-control form-control-sm font-monospace flex-grow-1" style="min-width:12rem" placeholder="arn:aws:kms:us-east-1:…" autocomplete="off">
+                    <button id="createKmsDnssecKeyBtn" type="button" class="btn btn-outline-secondary btn-sm text-nowrap align-self-center">Create new KMS key for DNSSEC</button>
+                  </div>
+                  <p class="small text-secondary mb-0">The button calls <code>POST /api/aws/kms/dnssec-signing-key</code>: new CMK (ECC_NIST_P256, sign/verify) in <strong>us-east-1</strong> with <code>dnssec-route53.amazonaws.com</code> on the key policy, then fills the ARN. Your IAM user needs <code>kms:CreateKey</code>, <code>kms:CreateAlias</code>, <code>kms:TagResource</code>, and <code>sts:GetCallerIdentity</code>.</p>
+                </div>
+                <div class="mt-3"><button id="runStep3Btn" type="button" class="btn btn-primary">Create Route53 hosted zone</button></div>
+                <div id="step3ResultSummary" class="mt-4 d-none">
+                  <h3 class="h6 border-bottom pb-2 mb-3">Zone &amp; DNSSEC</h3>
+                  <p id="step3ResultPlaceholder" class="small text-secondary mb-0">After you run the action above, a readable summary of the hosted zone, delegation NS, and DNSSEC (when enabled) appears here.</p>
+                  <div id="step3ResultBody" class="d-none">
+                    <div id="step3ZoneBlock" class="small mb-3"></div>
+                    <div id="step3NsBlock" class="small mb-3"></div>
+                    <div id="step3DnssecBlock" class="small mb-0"></div>
+                    <details id="step3CoreExtensionDetails" class="mt-3 small d-none">
+                      <summary class="text-secondary user-select-none" style="cursor:pointer">CORE <code>dnssecCoreExtension</code> (JSON)</summary>
+                      <pre id="step3CoreExtensionPre" class="bg-light border rounded p-2 mt-2 mb-0"></pre>
+                    </details>
+                  </div>
+                </div>
+              </div>
+
+              <div id="step4" class="step-pane">
+                <h2 class="h6">Step 4 - Run <code>domain.create</code></h2>
+                <p class="text-secondary small mb-3">Requires successful <code>domain.check</code> and step 2. Step 3 must succeed or be skipped. NS1–NS4 are pre-filled from Route53 when step 3 created or resolved a zone; you can edit them. If step 3 enabled DNSSEC and returned DS data, the same <code>dnssecCoreExtension</code> (including <code>dnssec.ds.1.key.pubkey.base64</code>) is sent on <code>domain.create</code> automatically—you do not toggle it separately. The API maps the step-2 contact ID to <code>registrant</code>, <code>admin</code>, <code>tech</code>, and <code>billing</code> on <code>domain.create</code> (same handle; optional <code>contact.techId</code> / <code>contact.billingId</code> only via the JSON API). Same rules apply for <code>CORE_DOMAIN_CREATE_NS_MANDATORY_REGISTRIES</code>, launch phase, and <code>eligibility.intended-use</code> as the standard wizard.</p>
+                <div id="step4DnssecPanel" class="mb-3 p-2 rounded border bg-white small d-none">
+                  <div class="fw-semibold mb-2">DNSSEC on <code>domain.create</code> <span class="text-secondary fw-normal">(from step 3; sent with the request like NS)</span></div>
+                  <div id="step4DnssecPanelBody"></div>
+                </div>
+                <p id="nsStep4Hint" class="small text-warning mb-3 d-none"></p>
+                <div class="row g-2">
+                  <div class="col-12 col-md-4"><label class="form-label">Period value</label><input id="periodValue" type="number" min="1" max="99" class="form-control" value="1"></div>
+                  <div class="col-12 col-md-4"><label class="form-label">Period unit</label><select id="periodUnit" class="form-select"><option value="y" selected>Year(s)</option><option value="m">Month(s)</option></select></div>
+                  <div class="col-12 col-md-4"><label class="form-label">Contact ID (auto-filled)</label><input id="contactIdView" class="form-control" readonly></div>
+                  <div class="col-12 col-md-6"><label class="form-label">NS1 <span class="text-secondary fw-normal">(Route53 delegation or manual)</span></label><input id="ns1" class="form-control" placeholder="e.g. ns-123.awsdns-12.com"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">NS2</label><input id="ns2" class="form-control"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">NS3</label><input id="ns3" class="form-control"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">NS4</label><input id="ns4" class="form-control"></div>
+                  <div class="col-12"><label class="form-label">Intended use <span class="text-secondary fw-normal">(eligibility.intended-use, e.g. .eus)</span></label><textarea id="eligibilityIntendedUse" class="form-control" rows="2" placeholder="Short description of how the domain will be used"></textarea></div>
+                </div>
+                <div class="mt-3"><button id="runStep4Btn" class="btn btn-success">Run domain.create</button></div>
+              </div>
+
+              <div class="d-flex justify-content-between mt-4">
+                <button id="prevStepBtn" class="btn btn-outline-secondary">Back</button>
+                <div id="gateMessage" class="small text-secondary align-self-center"></div>
+                <button id="nextStepBtn" class="btn btn-outline-primary">Next</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+          <div class="card shadow-sm border-0 h-100">
+            <div class="card-body d-flex flex-column">
+              <h2 class="h6">Response / Progress</h2>
+              <div class="small text-secondary mb-2">Latest API response and persisted wizard state.</div>
+              <pre id="responseView" class="bg-dark text-light rounded p-2 flex-grow-1 mb-0">{}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script id="nsMandatoryRegistriesJson" type="application/json">{{ nsMandatoryRegistries|json_encode|raw }}</script>
+  <script>
+    const STORAGE_KEY = 'ngatewayWizardAwsHz.v1';
+    const STEP_IDS = ['step1', 'step2', 'step3', 'step4'];
+    const INDICATOR_IDS = ['indicator-step1', 'indicator-step2', 'indicator-step3', 'indicator-step4'];
+    const DEFAULT_STATE = {
+      currentStep: 1,
+      steps: { step1: 'pending', step2: 'pending', step3: 'pending', step4: 'pending' },
+      forms: {
+        domainName: '', registryId: '.com', contactMode: 'create', existingContactId: '',
+        contactName: '', contactEmail: '', contactAddress: '',
+        contactCity: '', contactState: '', contactPostal: '', contactCountry: 'US', contactPhone: '',
+        contactOrg: '', skipRoute53HostedZone: false,
+        enableRoute53Dnssec: false, dnssecKmsKeyArn: '',
+        periodValue: '1', periodUnit: 'y', ns1: '', ns2: '', ns3: '', ns4: '',
+        launchPhase: '', eligibilityIntendedUse: ''
+      },
+      flow: {
+        contactId: '',
+        lastResponse: {},
+        lastRoute53HostedZoneResponse: {},
+        awsHostedZoneId: '',
+        awsNameServers: [],
+        dnssecCoreExtension: {}
+      }
+    };
+    let state = loadState();
+
+    let nsMandatoryRegistries = [];
+    (function loadNsMandatory() {
+      const el = document.getElementById('nsMandatoryRegistriesJson');
+      if (!el) return;
+      try {
+        nsMandatoryRegistries = JSON.parse(el.textContent || '[]');
+        if (!Array.isArray(nsMandatoryRegistries)) nsMandatoryRegistries = [];
+      } catch (_e) {
+        nsMandatoryRegistries = [];
+      }
+    })();
+
+    function isNsMandatoryForRegistry(reg) {
+      const n = normalizeRegistry(reg).toLowerCase();
+      return nsMandatoryRegistries.some((r) => String(r).toLowerCase() === n);
+    }
+
+    function hasAnyNsInForm() {
+      return ['ns1', 'ns2', 'ns3', 'ns4'].some((k) => String(state.forms[k] || '').trim() !== '');
+    }
+
+    function escapeHtml(s) {
+      if (s === null || s === undefined) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function syncStep3ButtonLabel() {
+      const btn = document.getElementById('runStep3Btn');
+      if (!btn) return;
+      if (state.forms.skipRoute53HostedZone) {
+        btn.textContent = 'Complete step 3 (skipped)';
+      } else {
+        btn.textContent = state.forms.enableRoute53Dnssec
+          ? 'Create hosted zone & enable DNSSEC'
+          : 'Create Route53 hosted zone';
+      }
+    }
+
+    function renderStep3Summary() {
+      const wrap = document.getElementById('step3ResultSummary');
+      const placeholder = document.getElementById('step3ResultPlaceholder');
+      const body = document.getElementById('step3ResultBody');
+      const zoneBlock = document.getElementById('step3ZoneBlock');
+      const nsBlock = document.getElementById('step3NsBlock');
+      const dnssecBlock = document.getElementById('step3DnssecBlock');
+      const corePre = document.getElementById('step3CoreExtensionPre');
+      const coreDetails = document.getElementById('step3CoreExtensionDetails');
+      if (!wrap || !placeholder || !body || !zoneBlock || !nsBlock || !dnssecBlock || !corePre) return;
+
+      if (state.currentStep !== 3) {
+        wrap.classList.add('d-none');
+        return;
+      }
+      wrap.classList.remove('d-none');
+
+      const r = state.flow.lastRoute53HostedZoneResponse || {};
+      const hasRun = r && typeof r === 'object' && Object.keys(r).length > 0;
+
+      if (!hasRun) {
+        placeholder.classList.remove('d-none');
+        body.classList.add('d-none');
+        corePre.textContent = '';
+        if (coreDetails) coreDetails.classList.add('d-none');
+        return;
+      }
+
+      placeholder.classList.add('d-none');
+      body.classList.remove('d-none');
+
+      if (r.code === 'skipped') {
+        zoneBlock.innerHTML =
+          '<p class="mb-0 text-secondary"><span class="fw-semibold">Route53 skipped.</span> ' +
+          escapeHtml(r.message || 'Enter nameservers manually in step 4.') +
+          '</p>';
+        nsBlock.innerHTML = '';
+        dnssecBlock.innerHTML = '';
+        corePre.textContent = '';
+        if (coreDetails) coreDetails.classList.add('d-none');
+        return;
+      }
+
+      let zoneHtml = '';
+      if (r.success) {
+        zoneHtml += '<div class="fw-semibold text-success mb-1">Hosted zone</div>';
+        zoneHtml += '<dl class="row mb-0 small">';
+        if (r.dnsName) {
+          zoneHtml +=
+            '<dt class="col-sm-3 text-secondary">DNS name</dt><dd class="col-sm-9 font-monospace">' +
+            escapeHtml(r.dnsName) +
+            '</dd>';
+        }
+        if (r.hostedZoneId) {
+          zoneHtml +=
+            '<dt class="col-sm-3 text-secondary">Zone ID</dt><dd class="col-sm-9 font-monospace text-break">' +
+            escapeHtml(r.hostedZoneId) +
+            '</dd>';
+        }
+        if (r.changeId) {
+          zoneHtml +=
+            '<dt class="col-sm-3 text-secondary">Change ID</dt><dd class="col-sm-9 font-monospace text-break">' +
+            escapeHtml(r.changeId) +
+            '</dd>';
+        }
+        zoneHtml += '</dl>';
+      } else {
+        zoneHtml =
+          '<div class="alert alert-danger py-2 mb-0 small"><strong>' +
+          escapeHtml(String(r.code || 'error')) +
+          '</strong> — ' +
+          escapeHtml(String(r.message || '')) +
+          '</div>';
+      }
+      zoneBlock.innerHTML = zoneHtml;
+
+      let nsHtml = '';
+      if (Array.isArray(r.nameServers) && r.nameServers.length) {
+        nsHtml += '<div class="fw-semibold mb-1">Delegation nameservers</div><ul class="mb-0 ps-3 font-monospace small">';
+        r.nameServers.forEach((ns) => {
+          nsHtml += '<li>' + escapeHtml(String(ns)) + '</li>';
+        });
+        nsHtml += '</ul>';
+      } else if (r.success) {
+        nsHtml = '<p class="text-secondary mb-0 small">No nameservers in response.</p>';
+      }
+      nsBlock.innerHTML = nsHtml;
+
+      let dsList = r.dnssecDsRecords;
+      if (!Array.isArray(dsList) && r.dnssec && Array.isArray(r.dnssec.dsRecords)) {
+        dsList = r.dnssec.dsRecords;
+      }
+      const extFromTop = r.coreDnssecCreateExtension;
+      const extFromNested = r.dnssec && r.dnssec.coreDnssecCreateExtension;
+      const ext =
+        extFromTop && typeof extFromTop === 'object' && !Array.isArray(extFromTop)
+          ? extFromTop
+          : extFromNested && typeof extFromNested === 'object' && !Array.isArray(extFromNested)
+            ? extFromNested
+            : {};
+
+      let dnssecHtml = '';
+      if (r.dnssec !== undefined && r.dnssec !== null && typeof r.dnssec === 'object') {
+        const d = r.dnssec;
+        if (d.success === true) {
+          dnssecHtml += '<div class="fw-semibold text-success mb-2">DNSSEC signing</div>';
+          dnssecHtml +=
+            '<p class="small mb-2">Route53 created a KSK, activated it, and enabled signing. Use the DS record(s) at the registrar (parent zone). Step 4 can send the same data as <code>dnssecCoreExtension</code> on <code>domain.create</code>.</p>';
+          if (Array.isArray(dsList) && dsList.length) {
+            dnssecHtml += '<div class="table-responsive"><table class="table table-sm table-bordered mb-2">';
+            dnssecHtml +=
+              '<thead><tr><th>Key tag</th><th>Alg</th><th>Digest type</th><th>Digest (hex)</th></tr></thead><tbody>';
+            dsList.forEach((row) => {
+              if (!row || typeof row !== 'object') return;
+              dnssecHtml += '<tr><td>' + escapeHtml(String(row.keyTag ?? row.keytag ?? '')) + '</td>';
+              dnssecHtml += '<td>' + escapeHtml(String(row.algorithm ?? row.alg ?? '')) + '</td>';
+              dnssecHtml += '<td>' + escapeHtml(String(row.digestType ?? row.digesttype ?? '')) + '</td>';
+              dnssecHtml +=
+                '<td class="font-monospace text-break" style="max-width:14rem">' +
+                escapeHtml(String(row.digest ?? '')) +
+                '</td></tr>';
+            });
+            dnssecHtml += '</tbody></table></div>';
+          }
+          if (d.keySigningKeyName) {
+            dnssecHtml +=
+              '<p class="small text-secondary mb-0">KSK name: <code>' +
+              escapeHtml(String(d.keySigningKeyName)) +
+              '</code></p>';
+          }
+        } else {
+          dnssecHtml =
+            '<div class="alert alert-warning py-2 mb-0 small"><strong>DNSSEC</strong> — ' +
+            escapeHtml(String(d.code || 'failed')) +
+            ': ' +
+            escapeHtml(String(d.message || '')) +
+            '</div>';
+          if (d.hint) {
+            dnssecHtml +=
+              '<p class="small mt-2 mb-1">' + escapeHtml(String(d.hint)) + '</p>';
+          }
+          const docUrl = String(d.documentationUrl || '').trim();
+          if (docUrl.indexOf('https://docs.aws.amazon.com/') === 0) {
+            dnssecHtml +=
+              '<p class="small mb-0"><a href="' +
+              escapeHtml(docUrl) +
+              '" target="_blank" rel="noopener noreferrer">AWS: KMS key policy for DNSSEC signing</a></p>';
+          }
+        }
+      } else if (state.forms.enableRoute53Dnssec) {
+        dnssecHtml =
+          '<p class="small text-secondary mb-0">DNSSEC was enabled for this request, but the API did not return a <code>dnssec</code> object (check raw JSON on the right).</p>';
+      } else {
+        dnssecHtml =
+          '<p class="small text-secondary mb-0">DNSSEC was not requested. To automate signing, enable <strong>Enable Route53 DNSSEC signing</strong> and provide an <strong>existing</strong> KMS key ARN (one key can serve many zones).</p>';
+      }
+      dnssecBlock.innerHTML = dnssecHtml;
+
+      const extKeys = ext && typeof ext === 'object' && !Array.isArray(ext) ? Object.keys(ext) : [];
+      if (extKeys.length && coreDetails) {
+        corePre.textContent = JSON.stringify(ext, null, 2);
+        coreDetails.classList.remove('d-none');
+      } else {
+        corePre.textContent = '';
+        if (coreDetails) coreDetails.classList.add('d-none');
+      }
+    }
+
+    function renderStep4DnssecPanel() {
+      const panel = document.getElementById('step4DnssecPanel');
+      const body = document.getElementById('step4DnssecPanelBody');
+      if (!panel || !body) return;
+      if (state.currentStep !== 4) {
+        panel.classList.add('d-none');
+        return;
+      }
+      panel.classList.remove('d-none');
+      const ext = state.flow.dnssecCoreExtension;
+      const has = ext && typeof ext === 'object' && !Array.isArray(ext) && Object.keys(ext).length > 0;
+      if (!has) {
+        body.innerHTML =
+          '<p class="mb-0 text-secondary">No DNSSEC data from step 3. To include DS records and the DNSKEY public key on <code>domain.create</code>, run step 3 again with <strong>Enable Route53 DNSSEC signing</strong> checked and a valid KMS key ARN.</p>';
+        return;
+      }
+      const kt = ext['dnssec.ds.1.ds.keytag'] ?? '';
+      const alg = ext['dnssec.ds.1.ds.alg'] ?? '';
+      const dt = ext['dnssec.ds.1.ds.digesttype'] ?? '';
+      const dig = ext['dnssec.ds.1.ds.digest.hex'] ?? '';
+      const pub = ext['dnssec.ds.1.key.pubkey.base64'] ?? '';
+      let html =
+        '<p class="mb-2">The following is included as <code>dnssecCoreExtension</code> when you click <strong>Run domain.create</strong>.</p>';
+      html += '<dl class="row mb-2 mb-0 small">';
+      html +=
+        '<dt class="col-sm-3 text-secondary">Key tag</dt><dd class="col-sm-9 font-monospace">' +
+        escapeHtml(String(kt)) +
+        '</dd>';
+      html +=
+        '<dt class="col-sm-3 text-secondary">DS alg / digest type</dt><dd class="col-sm-9 font-monospace">' +
+        escapeHtml(String(alg)) +
+        ' / ' +
+        escapeHtml(String(dt)) +
+        '</dd>';
+      html +=
+        '<dt class="col-sm-3 text-secondary">Digest (hex)</dt><dd class="col-sm-9 font-monospace text-break">' +
+        escapeHtml(String(dig)) +
+        '</dd>';
+      html += '</dl>';
+      if (pub) {
+        html +=
+          '<label class="form-label small mb-1">DNSKEY public key (<code>dnssec.ds.1.key.pubkey.base64</code>)</label><textarea class="form-control form-control-sm font-monospace mb-0" rows="3" readonly>' +
+          escapeHtml(String(pub)) +
+          '</textarea>';
+      } else {
+        html +=
+          '<p class="text-secondary mb-0 small">No <code>dnssec.ds.1.key.pubkey.base64</code> in the stored extension; CORE may still accept DS-only fields.</p>';
+      }
+      body.innerHTML = html;
+    }
+
+    function updateNsStep4Hint() {
+      const hint = document.getElementById('nsStep4Hint');
+      if (!hint) return;
+      if (state.currentStep !== 4) {
+        hint.classList.add('d-none');
+        return;
+      }
+      const reg = normalizeRegistry(state.forms.registryId);
+      if (isNsMandatoryForRegistry(reg) && !hasAnyNsInForm()) {
+        hint.textContent = 'This registry requires at least one nameserver (NS1–NS4), or set CORE_DEFAULT_NS1/CORE_DEFAULT_NS2 on the server.';
+        hint.classList.remove('d-none');
+      } else {
+        hint.classList.add('d-none');
+      }
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return structuredClone(DEFAULT_STATE);
+        const parsed = JSON.parse(raw);
+        return {
+          ...structuredClone(DEFAULT_STATE),
+          ...parsed,
+          steps: { ...DEFAULT_STATE.steps, ...(parsed.steps || {}) },
+          forms: { ...DEFAULT_STATE.forms, ...(parsed.forms || {}) },
+          flow: {
+            ...DEFAULT_STATE.flow,
+            ...(parsed.flow || {}),
+            awsNameServers: Array.isArray(parsed.flow?.awsNameServers) ? parsed.flow.awsNameServers : [],
+            dnssecCoreExtension:
+              parsed.flow?.dnssecCoreExtension &&
+              typeof parsed.flow.dnssecCoreExtension === 'object' &&
+              !Array.isArray(parsed.flow.dnssecCoreExtension)
+                ? { ...parsed.flow.dnssecCoreExtension }
+                : {},
+            lastRoute53HostedZoneResponse:
+              parsed.flow?.lastRoute53HostedZoneResponse &&
+              typeof parsed.flow.lastRoute53HostedZoneResponse === 'object' &&
+              !Array.isArray(parsed.flow.lastRoute53HostedZoneResponse)
+                ? { ...parsed.flow.lastRoute53HostedZoneResponse }
+                : {}
+          }
+        };
+      } catch (_e) {
+        return structuredClone(DEFAULT_STATE);
+      }
+    }
+
+    function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    function normalizeRegistry(value) { const v = String(value || '').trim(); return !v ? '.com' : (v.startsWith('.') ? v : '.' + v); }
+    function domainCheckName(domainName, registryId) { const dn = String(domainName || '').trim().toLowerCase(); const reg = normalizeRegistry(registryId).toLowerCase(); return dn.endsWith(reg) ? dn.slice(0, dn.length - reg.length) : dn; }
+    /** Same FQDN rule as CoreGatewayClient::fqdnForRegistry (domain.create). */
+    function fqdnForRegistry(domainName, registryId) {
+      let dn = String(domainName || '').trim().toLowerCase().replace(/\.+$/, '');
+      let reg = String(registryId || '').trim();
+      if (!dn) return '';
+      if (!reg) return dn;
+      if (reg[0] !== '.') reg = '.' + reg;
+      const suffix = reg.toLowerCase();
+      return dn.endsWith(suffix) ? dn : dn + suffix;
+    }
+
+    function setResponse(data) {
+      state.flow.lastResponse = data;
+      document.getElementById('responseView').textContent = JSON.stringify(data, null, 2);
+      saveState();
+    }
+
+    function api(path, method, body) {
+      return fetch(path, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+      }).then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        return data;
+      });
+    }
+
+    function applyAwsNameServersToForms(nameServers) {
+      if (!Array.isArray(nameServers)) return;
+      const keys = ['ns1', 'ns2', 'ns3', 'ns4'];
+      keys.forEach((k, i) => {
+        if (nameServers[i]) state.forms[k] = String(nameServers[i]).trim();
+      });
+    }
+
+    function canAccessStep(stepNumber) {
+      if (stepNumber <= 1) return true;
+      if (stepNumber === 2) return state.steps.step1 === 'done';
+      if (stepNumber === 3) return state.steps.step2 === 'done';
+      if (stepNumber === 4) return state.steps.step1 === 'done' && state.steps.step2 === 'done' && (state.forms.skipRoute53HostedZone || state.steps.step3 === 'done');
+      return true;
+    }
+
+    function updateIndicators() {
+      for (let i = 0; i < INDICATOR_IDS.length; i++) {
+        const key = 'step' + (i + 1);
+        const el = document.getElementById(INDICATOR_IDS[i]);
+        el.classList.remove('active', 'done', 'error');
+        if (state.currentStep === i + 1) el.classList.add('active');
+        if (state.steps[key] === 'done') el.classList.add('done');
+        if (state.steps[key] === 'error') el.classList.add('error');
+      }
+    }
+
+    function updateStepVisibility() {
+      for (let i = 0; i < STEP_IDS.length; i++) {
+        const pane = document.getElementById(STEP_IDS[i]);
+        pane.classList.toggle('active', i + 1 === state.currentStep);
+      }
+      document.getElementById('prevStepBtn').disabled = state.currentStep === 1;
+      document.getElementById('nextStepBtn').disabled = state.currentStep === 4;
+      document.getElementById('contactIdView').value = state.flow.contactId || '';
+      document.getElementById('gateMessage').textContent = canAccessStep(state.currentStep) ? '' : 'Complete previous required steps first.';
+      syncStep3ButtonLabel();
+      renderStep3Summary();
+      renderStep4DnssecPanel();
+      updateNsStep4Hint();
+      updateIndicators();
+      saveState();
+    }
+
+    function applyContactModeUi() {
+      const mode = state.forms.contactMode === 'existing' ? 'existing' : 'create';
+      if (state.forms.contactMode !== mode) state.forms.contactMode = mode;
+      const createFields = document.getElementById('contactCreateFields');
+      const existingFields = document.getElementById('contactExistingFields');
+      const btn = document.getElementById('runStep2Btn');
+      const sel = document.getElementById('contactMode');
+      if (sel && sel.value !== mode) sel.value = mode;
+      if (createFields) createFields.classList.toggle('d-none', mode === 'existing');
+      if (existingFields) existingFields.classList.toggle('d-none', mode !== 'existing');
+      if (btn) btn.textContent = mode === 'existing' ? 'Verify contact (contact.inquire)' : 'Run contact.create';
+    }
+
+    function fillFromState() {
+      Object.keys(DEFAULT_STATE.forms).forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (el.type === 'checkbox') el.checked = Boolean(state.forms[id]);
+        else el.value = state.forms[id] ?? '';
+      });
+      applyContactModeUi();
+      syncStep3ButtonLabel();
+      renderStep3Summary();
+      renderStep4DnssecPanel();
+      document.getElementById('responseView').textContent = JSON.stringify(state.flow.lastResponse || {}, null, 2);
+    }
+
+    function bindInputPersistence() {
+      Object.keys(DEFAULT_STATE.forms).forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const sync = () => {
+          if (id === 'contactMode') {
+            const next = el.value === 'existing' ? 'existing' : 'create';
+            const prev = state.forms.contactMode;
+            state.forms.contactMode = next;
+            if (prev !== next && state.steps.step2 === 'done') {
+              state.steps.step2 = 'pending';
+              state.flow.contactId = '';
+            }
+            applyContactModeUi();
+            saveState();
+            updateStepVisibility();
+            return;
+          }
+          if (id === 'existingContactId' && state.forms.contactMode === 'existing' && state.steps.step2 === 'done') {
+            state.steps.step2 = 'pending';
+            state.flow.contactId = '';
+          }
+          if (id === 'skipRoute53HostedZone' && el.checked) {
+            if (state.steps.step3 === 'done') state.steps.step3 = 'pending';
+            state.flow.dnssecCoreExtension = {};
+            state.flow.lastRoute53HostedZoneResponse = {};
+          }
+          if ((id === 'enableRoute53Dnssec' || id === 'dnssecKmsKeyArn') && state.steps.step3 === 'done') {
+            state.steps.step3 = 'pending';
+          }
+          state.forms[id] = el.type === 'checkbox' ? el.checked : el.value;
+          saveState();
+          updateStepVisibility();
+        };
+        el.addEventListener('input', sync);
+        el.addEventListener('change', sync);
+      });
+    }
+
+    async function runStep1() {
+      const domainName = String(state.forms.domainName || '').trim();
+      const registryId = normalizeRegistry(state.forms.registryId);
+      if (!domainName) {
+        state.steps.step1 = 'error';
+        setResponse({ success: false, code: 'invalid', message: 'Domain name is required for step 1.' });
+        return updateStepVisibility();
+      }
+      const launchPhase = String(state.forms.launchPhase || '').trim();
+      const checkBody = { domains: [domainCheckName(domainName, registryId)], registryId: registryId };
+      if (launchPhase) checkBody.launchPhase = launchPhase;
+      const result = await api('/api/domain/check', 'POST', checkBody);
+      state.steps.step1 = result.success ? 'done' : 'error';
+      setResponse(result);
+      updateStepVisibility();
+    }
+
+    async function runStep2() {
+      if (state.steps.step1 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'Run domain.check successfully before step 2.' });
+      if (state.forms.contactMode === 'existing') {
+        const cid = String(state.forms.existingContactId || '').trim();
+        if (cid.length < 3 || cid.length > 16) {
+          state.steps.step2 = 'error';
+          setResponse({ success: false, code: 'invalid', message: 'Existing contact ID must be 3–16 characters (gateway rule for domain.create).' });
+          return updateStepVisibility();
+        }
+        const reg = normalizeRegistry(state.forms.registryId);
+        const runBtn = document.getElementById('runStep2Btn');
+        if (runBtn) runBtn.disabled = true;
+        const q = new URLSearchParams({ registryId: reg, contactId: cid });
+        let inquireRes;
+        try {
+          inquireRes = await fetch('/api/contact/inquire?' + q.toString()).then((r) => r.json());
+        } catch (_e) {
+          inquireRes = { success: false, code: 'network', message: 'contact.inquire request failed.' };
+        } finally {
+          if (runBtn) runBtn.disabled = false;
+        }
+        if (!inquireRes.success) {
+          state.steps.step2 = 'error';
+          state.flow.contactId = '';
+          setResponse({
+            success: false,
+            code: inquireRes.code || 'inquire_failed',
+            message: inquireRes.message || 'contact.inquire failed — handle may not exist for this registry.',
+            registryId: reg,
+            contactId: cid,
+            contactInquire: inquireRes
+          });
+          return updateStepVisibility();
+        }
+        state.flow.contactId = cid;
+        state.steps.step2 = 'done';
+        setResponse({
+          success: true,
+          code: 'existing_contact_verified',
+          message: 'Contact verified for registry ' + reg + ' via contact.inquire. contact.create was not called.',
+          registryId: reg,
+          contactId: cid,
+          contactInquire: inquireRes
+        });
+        return updateStepVisibility();
+      }
+      const result = await api('/api/contact/create', 'POST', {
+        registryId: normalizeRegistry(state.forms.registryId),
+        contact: {
+          name: String(state.forms.contactName || '').trim(),
+          email: String(state.forms.contactEmail || '').trim(),
+          address: String(state.forms.contactAddress || '').trim(),
+          city: String(state.forms.contactCity || '').trim(),
+          state: String(state.forms.contactState || '').trim(),
+          postalcode: String(state.forms.contactPostal || '').trim(),
+          countrycode: String(state.forms.contactCountry || '').trim(),
+          phone: String(state.forms.contactPhone || '').trim(),
+          organization: String(state.forms.contactOrg || '').trim()
+        }
+      });
+      state.steps.step2 = result.success ? 'done' : 'error';
+      state.flow.contactId = result.contactId || '';
+      setResponse(result);
+      updateStepVisibility();
+    }
+
+    async function runStep3() {
+      if (state.steps.step2 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'Complete step 2 (contact) successfully before step 3.' });
+      if (state.forms.skipRoute53HostedZone) {
+        state.steps.step3 = 'done';
+        state.flow.dnssecCoreExtension = {};
+        const skipped = {
+          success: true,
+          code: 'skipped',
+          message: 'Route53 hosted zone skipped — enter NS manually in step 4.'
+        };
+        state.flow.lastRoute53HostedZoneResponse = { ...skipped };
+        setResponse(skipped);
+        return updateStepVisibility();
+      }
+      const domainName = String(state.forms.domainName || '').trim();
+      if (!domainName) {
+        state.steps.step3 = 'error';
+        setResponse({ success: false, code: 'invalid', message: 'Domain name from step 1 is required.' });
+        return updateStepVisibility();
+      }
+      const reg = normalizeRegistry(state.forms.registryId);
+      const fqdn = fqdnForRegistry(domainName, reg);
+      const hzBody = { domainName, registryId: reg };
+      if (state.forms.enableRoute53Dnssec) {
+        hzBody.enableDnssec = true;
+        const kms = String(state.forms.dnssecKmsKeyArn || '').trim();
+        if (kms) hzBody.dnssecKmsKeyArn = kms;
+      }
+      const result = await api('/api/aws/route53/hosted-zone', 'POST', hzBody);
+      state.steps.step3 = result.success ? 'done' : 'error';
+      if (result.success && Array.isArray(result.nameServers)) {
+        state.flow.awsNameServers = result.nameServers;
+        state.flow.awsHostedZoneId = result.hostedZoneId || '';
+        applyAwsNameServersToForms(result.nameServers);
+      }
+      if (result.success && result.coreDnssecCreateExtension && typeof result.coreDnssecCreateExtension === 'object' && !Array.isArray(result.coreDnssecCreateExtension)) {
+        state.flow.dnssecCoreExtension = { ...result.coreDnssecCreateExtension };
+      } else if (result.success) {
+        state.flow.dnssecCoreExtension = {};
+      }
+      state.flow.lastRoute53HostedZoneResponse = result && typeof result === 'object' ? { ...result } : {};
+      setResponse(result);
+      updateStepVisibility();
+      fillFromState();
+    }
+
+    async function runCreateKmsDnssecKey() {
+      const btn = document.getElementById('createKmsDnssecKeyBtn');
+      if (btn) btn.disabled = true;
+      try {
+        const result = await api('/api/aws/kms/dnssec-signing-key', 'POST', {});
+        if (result.success && result.keyArn) {
+          state.forms.dnssecKmsKeyArn = String(result.keyArn);
+          const input = document.getElementById('dnssecKmsKeyArn');
+          if (input) input.value = state.forms.dnssecKmsKeyArn;
+          saveState();
+        }
+        setResponse(result);
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+      updateStepVisibility();
+    }
+
+    async function runStep4() {
+      if (state.steps.step1 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'domain.check must succeed before domain.create.' });
+      if (state.steps.step2 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'Step 2 must be complete (contact.create or existing contact ID) before domain.create.' });
+      if (!state.forms.skipRoute53HostedZone && state.steps.step3 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'Route53 step must succeed, or enable skip and enter NS manually.' });
+      const domainName = String(state.forms.domainName || '').trim();
+      if (!domainName) return setResponse({ success: false, code: 'invalid', message: 'Domain name is required for step 4.' });
+      if (!state.flow.contactId) return setResponse({ success: false, code: 'invalid', message: 'No contactId available from step 2.' });
+
+      const reg = normalizeRegistry(state.forms.registryId);
+      if (isNsMandatoryForRegistry(reg) && !hasAnyNsInForm()) {
+        setResponse({ success: false, code: 'invalid', message: 'Nameservers are required for this registry. Enter NS1–NS4 or set CORE_DEFAULT_NS1/CORE_DEFAULT_NS2.' });
+        return updateStepVisibility();
+      }
+
+      const launchPhase = String(state.forms.launchPhase || '').trim();
+      const intended = String(state.forms.eligibilityIntendedUse || '').trim();
+      const createBody = {
+        domainName: domainName,
+        registryId: normalizeRegistry(state.forms.registryId),
+        periodValue: Number(state.forms.periodValue || 1),
+        periodUnit: String(state.forms.periodUnit || 'y'),
+        contact: { id: state.flow.contactId },
+        ns1: String(state.forms.ns1 || '').trim() || undefined,
+        ns2: String(state.forms.ns2 || '').trim() || undefined,
+        ns3: String(state.forms.ns3 || '').trim() || undefined,
+        ns4: String(state.forms.ns4 || '').trim() || undefined
+      };
+      if (launchPhase) createBody.launchPhase = launchPhase;
+      if (intended) createBody.eligibilityIntendedUse = intended;
+      const ext = state.flow.dnssecCoreExtension;
+      const hasDnssec =
+        ext && typeof ext === 'object' && !Array.isArray(ext) && Object.keys(ext).length > 0;
+      if (hasDnssec) {
+        createBody.dnssecCoreExtension = ext;
+      }
+      const result = await api('/api/domain/create', 'POST', createBody);
+      state.steps.step4 = result.success ? 'done' : 'error';
+      setResponse(result);
+      updateStepVisibility();
+    }
+
+    function goNext() { const n = Math.min(4, state.currentStep + 1); if (canAccessStep(n)) state.currentStep = n; updateStepVisibility(); }
+    function goBack() { state.currentStep = Math.max(1, state.currentStep - 1); updateStepVisibility(); }
+    function resetWizard() { state = structuredClone(DEFAULT_STATE); saveState(); fillFromState(); updateStepVisibility(); setResponse({}); }
+
+    document.getElementById('runStep1Btn').addEventListener('click', runStep1);
+    document.getElementById('runStep2Btn').addEventListener('click', runStep2);
+    document.getElementById('runStep3Btn').addEventListener('click', runStep3);
+    const createKmsBtn = document.getElementById('createKmsDnssecKeyBtn');
+    if (createKmsBtn) createKmsBtn.addEventListener('click', runCreateKmsDnssecKey);
+    document.getElementById('runStep4Btn').addEventListener('click', runStep4);
+    document.getElementById('prevStepBtn').addEventListener('click', goBack);
+    document.getElementById('nextStepBtn').addEventListener('click', goNext);
+    document.getElementById('resetWizardBtn').addEventListener('click', resetWizard);
+
+    bindInputPersistence();
+    fillFromState();
+    updateStepVisibility();
+  </script>
+</body>
+</html>

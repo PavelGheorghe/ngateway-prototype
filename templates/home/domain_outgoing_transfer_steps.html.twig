@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NGateway Outgoing Domain Transfer</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+    crossorigin="anonymous"
+  >
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { background: #f8f9fa; }
+    .viewport-wrapper { min-height: 100vh; width: 100%; padding: 1.25rem; }
+    .step-pane { display: none; }
+    .step-pane.active { display: block; }
+    .step-indicator { border: 1px solid #dbe1ea; border-radius: 8px; background: #fff; padding: .65rem .8rem; height: 100%; }
+    .step-indicator.active { border-left: 4px solid #0d6efd; }
+    .step-indicator.done { border-left: 4px solid #198754; }
+    .step-indicator.error { border-left: 4px solid #dc3545; }
+    #responseView { min-height: 180px; max-height: 400px; overflow: auto; }
+    .mono { font-family: ui-monospace, monospace; font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <main class="viewport-wrapper d-flex flex-column">
+    <div class="container-fluid px-0">
+      <div class="row g-3 mb-3">
+        <div class="col-12">
+          <div class="card shadow-sm border-0">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                <div>
+                  <h1 class="h4 mb-2">Outgoing domain transfer (losing registrar)</h1>
+                  <p class="mb-0 text-secondary small">
+                    CORE does not define <code>poll.queue</code>. Use <code>poll.status</code> to see queue ids (<code>msg.unread.id</code>, etc.), then <code>poll.request</code> for each oldest unread message; acknowledge with <code>poll.acknowledge</code> or <code>msg.autoack</code> on the request.
+                    When <code>msg.transfer.role</code> is <code>losing</code>, respond with <code>domain.transfer.reply</code> (<code>approve</code> or <code>reject</code>).
+                  </p>
+                </div>
+                <button id="resetWizardBtn" class="btn btn-outline-secondary btn-sm">Reset</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-6"><div id="indicator-step1" class="step-indicator"><div class="fw-semibold">1. Poll queue</div><div class="small text-secondary">poll.status → poll.request / poll.acknowledge</div></div></div>
+        <div class="col-12 col-md-6"><div id="indicator-step2" class="step-indicator"><div class="fw-semibold">2. domain.transfer.reply</div><div class="small text-secondary">Approve or reject transfer</div></div></div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-12 col-xl-8">
+          <div class="card shadow-sm border-0">
+            <div class="card-body">
+              <div id="step1" class="step-pane">
+                <h2 class="h6">Step 1 — Poll queue</h2>
+                <p class="text-secondary small mb-3">Run <strong>poll.status</strong> to see whether unread messages exist. Each <code>poll.request</code> returns one message (oldest unread unless you pass <code>msg.id</code>). Result <code>13000</code> means no unread messages. For outgoing transfers, prefer messages with <code>msg.transfer.role: losing</code> before step 2.</p>
+                <div class="row g-2 mb-2">
+                  <div class="col-12 col-md-4"><label class="form-label">msg.id hint (optional)</label><input id="pollMsgId" class="form-control form-control-sm" placeholder="omit for next unread"></div>
+                  <div class="col-12 col-md-4"><label class="form-label">msg.after (optional, ISO-8601)</label><input id="pollMsgAfter" class="form-control form-control-sm" placeholder="e.g. 2026-01-01T00:00:00.0Z"></div>
+                  <div class="col-12 col-md-4"><label class="form-label">msg.before (optional)</label><input id="pollMsgBefore" class="form-control form-control-sm" placeholder="upper time bound"></div>
+                </div>
+                <div class="row g-2 mb-3">
+                  <div class="col-12 col-md-6 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" id="pollAutoAck"><label class="form-check-label" for="pollAutoAck">msg.autoack = true on poll.request</label></div></div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                  <button type="button" id="pollStatusBtn" class="btn btn-outline-dark btn-sm">poll.status</button>
+                  <button type="button" id="pollOnceBtn" class="btn btn-primary btn-sm">poll.request once</button>
+                  <button type="button" id="pollDrainBtn" class="btn btn-outline-primary btn-sm">Drain &amp; scan (max 30)</button>
+                  <button type="button" id="pollAckBtn" class="btn btn-outline-secondary btn-sm">poll.acknowledge current msg.id</button>
+                </div>
+                <div id="pollQueueStatus" class="small text-secondary mono mb-2">Queue: run poll.status</div>
+                <div id="pollScanHint" class="alert alert-secondary small py-2 d-none mb-0" role="status"></div>
+              </div>
+
+              <div id="step2" class="step-pane">
+                <h2 class="h6">Step 2 — <code>domain.transfer.reply</code></h2>
+                <p class="text-secondary small mb-3">Losing registrar decision. Reject requires <code>transfer.reply.reason</code> per Payload 2.0. Use <strong>Apply from poll</strong> to copy fields from the last successful <code>poll.request</code> response in the progress panel.</p>
+                <div class="mb-2"><button type="button" id="applyFromPollBtn" class="btn btn-outline-secondary btn-sm">Apply domain fields from last poll response</button></div>
+                <div class="row g-2">
+                  <div class="col-12 col-md-6"><label class="form-label">Registry ID</label><input id="replyRegistryId" class="form-control form-control-sm" placeholder=".com or poll registry.id"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Domain name (Unicode or ASCII)</label><input id="replyDomainName" class="form-control form-control-sm" placeholder="example.com"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">domain.id <span class="text-secondary fw-normal">(optional)</span></label><input id="replyDomainId" class="form-control form-control-sm mono"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Decision</label><select id="replyDecision" class="form-select form-select-sm"><option value="approve">approve</option><option value="reject">reject</option></select></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Reject reason <span class="text-secondary fw-normal">(required if reject)</span></label>
+                    <select id="replyRejectReason" class="form-select form-select-sm">
+                      <option value="">—</option>
+                      <option value="courtorder">courtorder</option>
+                      <option value="creationdate">creationdate</option>
+                      <option value="fraud">fraud</option>
+                      <option value="identity">identity</option>
+                      <option value="objection">objection</option>
+                      <option value="payment">payment</option>
+                      <option value="transferdate">transferdate</option>
+                      <option value="udrpaction">udrpaction</option>
+                    </select>
+                  </div>
+                  <div class="col-12"><label class="form-label">Comment <span class="text-secondary fw-normal">(optional)</span></label><textarea id="replyComment" class="form-control form-control-sm" rows="2"></textarea></div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                  <button type="button" id="runTransferReplyBtn" class="btn btn-success btn-sm">Send domain.transfer.reply</button>
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-between mt-4">
+                <button id="prevStepBtn" class="btn btn-outline-secondary">Back</button>
+                <div id="gateMessage" class="small text-secondary align-self-center"></div>
+                <button id="nextStepBtn" class="btn btn-outline-primary">Next</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+          <div class="card shadow-sm border-0 h-100">
+            <div class="card-body d-flex flex-column">
+              <h2 class="h6">Progress</h2>
+              <div class="small text-secondary mb-2">Last <code>msg.id</code> (ack): <span id="lastMsgIdLabel" class="mono">—</span></div>
+              <pre id="responseView" class="bg-dark text-light rounded p-2 flex-grow-1 mb-0 mono">{}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script>
+    const STORAGE_KEY = 'ngatewayOutgoingTransfer.v1';
+    const STEP_IDS = ['step1', 'step2'];
+    const INDICATOR_IDS = ['indicator-step1', 'indicator-step2'];
+    let lastMsgId = '';
+
+    const DEFAULT_STATE = {
+      currentStep: 1,
+      steps: { step1: 'pending', step2: 'pending' },
+      forms: {
+        pollMsgId: '', pollMsgAfter: '', pollMsgBefore: '', pollAutoAck: false,
+        replyRegistryId: '.com', replyDomainName: '', replyDomainId: '',
+        replyDecision: 'approve', replyRejectReason: '', replyComment: ''
+      },
+      flow: { lastResponse: {} }
+    };
+    let state = loadState();
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return structuredClone(DEFAULT_STATE);
+        const parsed = JSON.parse(raw);
+        return {
+          ...structuredClone(DEFAULT_STATE),
+          ...parsed,
+          steps: { ...DEFAULT_STATE.steps, ...(parsed.steps || {}) },
+          forms: { ...DEFAULT_STATE.forms, ...(parsed.forms || {}) },
+          flow: { ...DEFAULT_STATE.flow, ...(parsed.flow || {}) }
+        };
+      } catch (_e) {
+        return structuredClone(DEFAULT_STATE);
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function setResponse(data) {
+      state.flow.lastResponse = data;
+      document.getElementById('responseView').textContent = JSON.stringify(data, null, 2);
+      saveState();
+    }
+
+    function api(path, method, body) {
+      return fetch(path, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+      }).then((r) => r.json().catch(() => ({})));
+    }
+
+    function firstStr(obj, keys) {
+      if (!obj || typeof obj !== 'object') return '';
+      for (const k of keys) {
+        const v = obj[k];
+        if (v == null) continue;
+        const s = Array.isArray(v) ? String(v[0] ?? '') : String(v);
+        const t = s.trim();
+        if (t) return t;
+      }
+      return '';
+    }
+
+    function parsePollSuccess(res) {
+      if (!res || res.success !== true) return null;
+      const d = res.data;
+      if (!d || typeof d !== 'object') return null;
+      return d;
+    }
+
+    function transferLikelyFromPoll(d) {
+      const role = String(firstStr(d, ['msg.transfer.role', 'MSG.TRANSFER.ROLE']) || '').toLowerCase();
+      if (role === 'losing') return { likely: true, reason: 'msg.transfer.role: losing (outgoing — use step 2)' };
+      const msgType = String(firstStr(d, ['msg.type', 'MSG.TYPE']) || '').toLowerCase();
+      if (msgType.includes('transfer')) return { likely: true, reason: 'msg.type: ' + msgType };
+      const blob = JSON.stringify(d).toLowerCase();
+      if (blob.includes('transfer')) return { likely: true, reason: 'payload mentions transfer' };
+      return { likely: false, reason: '' };
+    }
+
+    function isPollQueueEmpty(res) {
+      const c = String(res?.code ?? res?.data?.['result.code'] ?? '').trim();
+      return c === '13000';
+    }
+
+    function updateQueueStatusLine(res) {
+      const el = document.getElementById('pollQueueStatus');
+      if (!el) return;
+      if (!res || res.success !== true || !res.data || typeof res.data !== 'object') {
+        el.textContent = 'Queue: poll.status not successful — see progress JSON';
+        return;
+      }
+      const d = res.data;
+      const first = firstStr(d, ['msg.first.id', 'MSG.FIRST.ID']);
+      const unread = firstStr(d, ['msg.unread.id', 'MSG.UNREAD.ID']);
+      const last = firstStr(d, ['msg.last.id', 'MSG.LAST.ID']);
+      el.textContent = 'Queue: first=' + (first || '0') + ' unread=' + (unread || '0') + ' last=' + (last || '0') + (unread === '0' ? ' (no unread)' : '');
+    }
+
+    function updateMsgIdFromPoll(d) {
+      const mid = firstStr(d, ['msg.id', 'MSG.ID']);
+      if (mid) {
+        lastMsgId = mid;
+        const el = document.getElementById('lastMsgIdLabel');
+        if (el) el.textContent = mid;
+      }
+    }
+
+    function showPollHint(text, isAlert) {
+      const box = document.getElementById('pollScanHint');
+      if (!box) return;
+      box.textContent = text;
+      box.classList.toggle('d-none', !text);
+      box.classList.toggle('alert-warning', !!isAlert);
+      box.classList.toggle('alert-secondary', !isAlert);
+    }
+
+    function applyFromPoll() {
+      const res = state.flow.lastResponse;
+      let d = parsePollSuccess(res);
+      if (!d && res && res.data) d = res.data;
+      if (!d || typeof d !== 'object') {
+        setResponse({ success: false, code: 'invalid', message: 'No poll data in progress panel. Run poll.request first.' });
+        return;
+      }
+      const reg = firstStr(d, ['msg.registry.id', 'MSG.REGISTRY.ID', 'registry.id', 'REGISTRY.ID']);
+      const dom = firstStr(d, ['msg.domain.name.i15d', 'MSG.DOMAIN.NAME.I15D', 'msg.domain.name', 'MSG.DOMAIN.NAME', 'domain.name.i15d', 'DOMAIN.NAME.I15D', 'domain.name', 'DOMAIN.NAME']);
+      const did = firstStr(d, ['msg.domain.id', 'MSG.DOMAIN.ID', 'domain.id', 'DOMAIN.ID']);
+      if (reg) document.getElementById('replyRegistryId').value = reg.startsWith('.') ? reg : (reg.length <= 3 ? '.' + reg : reg);
+      else document.getElementById('replyRegistryId').value = state.forms.replyRegistryId || '.com';
+      if (dom) document.getElementById('replyDomainName').value = dom;
+      if (did) document.getElementById('replyDomainId').value = did;
+      state.forms.replyRegistryId = document.getElementById('replyRegistryId').value;
+      state.forms.replyDomainName = document.getElementById('replyDomainName').value;
+      state.forms.replyDomainId = document.getElementById('replyDomainId').value;
+      saveState();
+      setResponse({ success: true, code: 'applied_from_poll', applied: { registryId: reg, domainName: dom, domainId: did } });
+    }
+
+    async function pollStatus() {
+      const body = {};
+      const after = String(document.getElementById('pollMsgAfter').value || '').trim();
+      const before = String(document.getElementById('pollMsgBefore').value || '').trim();
+      if (after) body.msgAfter = after;
+      if (before) body.msgBefore = before;
+      const res = await api('/api/poll/status', 'POST', body);
+      updateQueueStatusLine(res);
+      setResponse(res);
+    }
+
+    async function pollOnce() {
+      const body = {};
+      const mid = String(document.getElementById('pollMsgId').value || '').trim();
+      if (mid) body.msgId = mid;
+      if (document.getElementById('pollAutoAck').checked) body.msgAutoack = true;
+      const res = await api('/api/poll/request', 'POST', body);
+      if (isPollQueueEmpty(res)) {
+        showPollHint('No unread messages (result.code 13000).', false);
+        setResponse(res);
+        return;
+      }
+      const d = parsePollSuccess(res);
+      if (d) {
+        updateMsgIdFromPoll(d);
+        const h = transferLikelyFromPoll(d);
+        const role = String(firstStr(d, ['msg.transfer.role', 'MSG.TRANSFER.ROLE']) || '').toLowerCase();
+        const roleNote = role === 'gaining' ? ' Note: msg.transfer.role is gaining — domain.transfer.reply is for the losing registrar.' : '';
+        showPollHint((h.likely ? 'Transfer-related message — review step 2.' : 'Review msg.type / msg.transfer.role; use step 2 only if losing registrar.') + roleNote, h.likely || role === 'losing');
+      } else {
+        showPollHint('', false);
+      }
+      setResponse(res);
+    }
+
+    async function pollDrain() {
+      const max = 30;
+      const log = { scanned: [], transferHints: [] };
+      let prevMsgId = '';
+      const statusBody = {};
+      const after = String(document.getElementById('pollMsgAfter').value || '').trim();
+      const before = String(document.getElementById('pollMsgBefore').value || '').trim();
+      if (after) statusBody.msgAfter = after;
+      if (before) statusBody.msgBefore = before;
+      const statusRes = await api('/api/poll/status', 'POST', statusBody);
+      log.initialPollStatus = statusRes;
+      updateQueueStatusLine(statusRes);
+
+      for (let n = 0; n < max; n++) {
+        const body = {};
+        if (document.getElementById('pollAutoAck').checked) body.msgAutoack = true;
+        const res = await api('/api/poll/request', 'POST', body);
+        log.scanned.push(res);
+        if (isPollQueueEmpty(res)) {
+          log.stoppedAt = n;
+          log.reason = 'queue empty (result.code 13000)';
+          break;
+        }
+        const d = parsePollSuccess(res);
+        if (!d) {
+          log.stoppedAt = n;
+          log.reason = 'poll.request unsuccessful or unexpected response';
+          break;
+        }
+        const mid = firstStr(d, ['msg.id', 'MSG.ID']);
+        if (!mid) {
+          log.stoppedAt = n;
+          log.reason = 'no msg.id in success response';
+          break;
+        }
+        if (mid === prevMsgId && prevMsgId !== '') {
+          log.stoppedAt = n;
+          log.reason = 'same msg.id as previous poll — queue not advancing (try explicit poll.acknowledge, or msg.autoack on request)';
+          break;
+        }
+        prevMsgId = mid;
+        updateMsgIdFromPoll(d);
+        const h = transferLikelyFromPoll(d);
+        if (h.likely) log.transferHints.push({ msgId: mid, hint: h.reason, snapshot: d });
+        if (!document.getElementById('pollAutoAck').checked) {
+          const ack = await api('/api/poll/acknowledge', 'POST', { msgId: mid });
+          log.scanned.push({ ackFor: mid, ack });
+          if (!ack.success) {
+            log.reason = 'ack failed';
+            break;
+          }
+        }
+      }
+      const statusEnd = await api('/api/poll/status', 'POST', statusBody);
+      log.finalPollStatus = statusEnd;
+      updateQueueStatusLine(statusEnd);
+      const sawPoll = log.scanned.some((x) => x && x.success === true && x.data && typeof x.data === 'object' && firstStr(x.data, ['msg.id', 'MSG.ID']));
+      if (sawPoll) state.steps.step1 = 'done';
+      const hintMsg = log.reason === 'queue empty (result.code 13000)' && log.scanned.length === 1
+        ? 'Queue had no unread messages (13000 on first poll.request).'
+        : (log.transferHints.length ? 'Found ' + log.transferHints.length + ' transfer-like message(s) — inspect log, then Apply from poll.' : 'Drain finished — see scanned + poll.status before/after.');
+      showPollHint(hintMsg, log.transferHints.length > 0);
+      setResponse(log);
+    }
+
+    async function pollAck() {
+      const mid = String(lastMsgId || '').trim() || String(document.getElementById('pollMsgId').value || '').trim();
+      if (!mid) {
+        setResponse({ success: false, code: 'invalid', message: 'No msg.id — run poll.request first or enter msg.id hint.' });
+        return;
+      }
+      const res = await api('/api/poll/acknowledge', 'POST', { msgId: mid });
+      setResponse(res);
+    }
+
+    async function runTransferReply() {
+      const registryId = String(document.getElementById('replyRegistryId').value || '').trim() || '.com';
+      const domainName = String(document.getElementById('replyDomainName').value || '').trim();
+      const domainId = String(document.getElementById('replyDomainId').value || '').trim();
+      const transferReply = String(document.getElementById('replyDecision').value || 'approve');
+      const transferReplyReason = String(document.getElementById('replyRejectReason').value || '').trim();
+      const transferReplyComment = String(document.getElementById('replyComment').value || '').trim();
+      if (!domainName) {
+        setResponse({ success: false, code: 'invalid', message: 'domainName required' });
+        return;
+      }
+      if (transferReply === 'reject' && !transferReplyReason) {
+        setResponse({ success: false, code: 'invalid', message: 'Select a reject reason' });
+        return;
+      }
+      const body = { registryId, domainName, transferReply };
+      if (domainId) body.domainId = domainId;
+      if (transferReply === 'reject') body.transferReplyReason = transferReplyReason;
+      if (transferReplyComment) body.transferReplyComment = transferReplyComment;
+      const res = await api('/api/domain/transfer-reply', 'POST', body);
+      state.steps.step2 = res.success ? 'done' : 'error';
+      setResponse(res);
+      updateStepVisibility();
+    }
+
+    function canAccessStep(n) {
+      if (n <= 1) return true;
+      return state.steps.step1 === 'done';
+    }
+
+    function updateIndicators() {
+      for (let i = 0; i < INDICATOR_IDS.length; i++) {
+        const key = 'step' + (i + 1);
+        const el = document.getElementById(INDICATOR_IDS[i]);
+        el.classList.remove('active', 'done', 'error');
+        if (state.currentStep === i + 1) el.classList.add('active');
+        if (state.steps[key] === 'done') el.classList.add('done');
+        if (state.steps[key] === 'error') el.classList.add('error');
+      }
+    }
+
+    function updateStepVisibility() {
+      for (let i = 0; i < STEP_IDS.length; i++) {
+        document.getElementById(STEP_IDS[i]).classList.toggle('active', i + 1 === state.currentStep);
+      }
+      document.getElementById('prevStepBtn').disabled = state.currentStep === 1;
+      document.getElementById('nextStepBtn').disabled = state.currentStep === 2;
+      document.getElementById('gateMessage').textContent = canAccessStep(state.currentStep) ? '' : 'Finish step 1 (poll at least once successfully) first.';
+      updateIndicators();
+      saveState();
+    }
+
+    function fillFromState() {
+      Object.keys(DEFAULT_STATE.forms).forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (el.type === 'checkbox') el.checked = Boolean(state.forms[id]);
+        else el.value = state.forms[id] ?? '';
+      });
+      document.getElementById('responseView').textContent = JSON.stringify(state.flow.lastResponse || {}, null, 2);
+    }
+
+    function bindInputPersistence() {
+      Object.keys(DEFAULT_STATE.forms).forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const sync = () => {
+          state.forms[id] = el.type === 'checkbox' ? el.checked : el.value;
+          saveState();
+        };
+        el.addEventListener('input', sync);
+        el.addEventListener('change', sync);
+      });
+    }
+
+    function markStep1Done() {
+      const res = state.flow.lastResponse;
+      if (!res) return;
+      if (res.success === true && res.data && typeof res.data === 'object' && firstStr(res.data, ['msg.id', 'MSG.ID'])) {
+        state.steps.step1 = 'done';
+        return;
+      }
+      if (Array.isArray(res.scanned)) {
+        const ok = res.scanned.some((x) => x.success === true && x.data && firstStr(x.data, ['msg.id', 'MSG.ID']));
+        if (ok) state.steps.step1 = 'done';
+      }
+    }
+
+    function goNext() {
+      if (state.currentStep === 1) {
+        markStep1Done();
+        if (state.steps.step1 !== 'done') {
+          document.getElementById('gateMessage').textContent = 'Run poll.request successfully at least once (response with msg.id) before step 2.';
+          return updateStepVisibility();
+        }
+      }
+      state.currentStep = Math.min(2, state.currentStep + 1);
+      updateStepVisibility();
+    }
+
+    function goBack() {
+      state.currentStep = Math.max(1, state.currentStep - 1);
+      updateStepVisibility();
+    }
+
+    function resetWizard() {
+      state = structuredClone(DEFAULT_STATE);
+      lastMsgId = '';
+      document.getElementById('lastMsgIdLabel').textContent = '—';
+      saveState();
+      fillFromState();
+      updateStepVisibility();
+      setResponse({});
+      showPollHint('', false);
+    }
+
+    document.getElementById('pollStatusBtn').addEventListener('click', pollStatus);
+    document.getElementById('pollOnceBtn').addEventListener('click', async () => {
+      await pollOnce();
+      markStep1Done();
+      updateStepVisibility();
+    });
+    document.getElementById('pollDrainBtn').addEventListener('click', async () => {
+      await pollDrain();
+      updateStepVisibility();
+    });
+    document.getElementById('pollAckBtn').addEventListener('click', pollAck);
+    document.getElementById('applyFromPollBtn').addEventListener('click', applyFromPoll);
+    document.getElementById('runTransferReplyBtn').addEventListener('click', runTransferReply);
+    document.getElementById('prevStepBtn').addEventListener('click', goBack);
+    document.getElementById('nextStepBtn').addEventListener('click', goNext);
+    document.getElementById('resetWizardBtn').addEventListener('click', resetWizard);
+
+    bindInputPersistence();
+    fillFromState();
+    updateStepVisibility();
+  </script>
+</body>
+</html>

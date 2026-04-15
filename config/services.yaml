@@ -1,0 +1,101 @@
+# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+
+# This file is the entry point to configure your own services.
+# Files in the packages/ subdirectory configure your dependencies.
+# See also https://symfony.com/doc/current/service_container/import.html
+
+# Put parameters here that don't need to change on each machine where the app is deployed
+# https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
+parameters:
+    # Comma-separated Brizy Cloud origins allowed to iframe /embed/buy-domain, /embed/manage-domains and postMessage (e.g. https://brizy-cloud.local,https://app.brizy.cloud). Empty = allow any parent (development only).
+    env(BRIZY_PARENT_ORIGINS): ''
+    app.brizy_parent_origins: '%env(string:BRIZY_PARENT_ORIGINS)%'
+    # Must match Brizy Cloud PUNTU_EMBED_SHARED_SECRET (Multipass/JWT for ?token= on embed URL).
+    env(PUNTU_EMBED_SHARED_SECRET): ''
+    app.puntu_embed_shared_secret: '%env(string:PUNTU_EMBED_SHARED_SECRET)%'
+    app.core_member_id: '%env(CORE_MEMBER_ID)%'
+    app.core_atp: '%env(CORE_ATP)%'
+    app.core_client_name: '%env(CORE_CLIENT_NAME)%'
+    app.core_production: '%env(bool:CORE_PRODUCTION)%'
+    app.core_provider_chain_spec: '%env(CORE_PROVIDER_CHAIN_SPEC)%'
+    app.core_provider_chain_type: '%env(CORE_PROVIDER_CHAIN_TYPE)%'
+    app.core_default_ns1: '%env(CORE_DEFAULT_NS1)%'
+    app.core_default_ns2: '%env(CORE_DEFAULT_NS2)%'
+    app.core_skip_provider_chain: '%env(bool:CORE_SKIP_PROVIDER_CHAIN)%'
+    app.core_debug_request: '%env(bool:CORE_DEBUG_REQUEST)%'
+    app.core_verify_ssl: '%env(bool:CORE_VERIFY_SSL)%'
+    app.nggateway_log_path: '%kernel.project_dir%/var/log/nggateway_requests.log'
+    app.nggateway_log_enabled: '%env(bool:CORE_GATEWAY_LOG_ENABLED)%'
+    # Comma-separated registry.id values (e.g. ".com,.net") where domain.create requires at least one nameserver. Empty = never require.
+    app.domain_create_ns_mandatory_registries: '%env(string:CORE_DOMAIN_CREATE_NS_MANDATORY_REGISTRIES)%'
+
+services:
+    # default configuration for services in *this* file
+    _defaults:
+        autowire: true      # Automatically injects dependencies in your services.
+        autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
+
+    # makes classes in src/ available to be used as services
+    # this creates a service per class whose id is the fully-qualified class name
+    App\:
+        resource: '../src/'
+
+    App\Service\NgGatewayRequestLogger:
+        arguments:
+            $logFilePath: '%app.nggateway_log_path%'
+            $enabled: '%app.nggateway_log_enabled%'
+
+    App\Service\CoreGatewayHttpService:
+        arguments:
+            $memberId: '%app.core_member_id%'
+            $atp: '%app.core_atp%'
+            $production: '%app.core_production%'
+            $verifySsl: '%app.core_verify_ssl%'
+
+    App\Service\CoreGatewayClient:
+        arguments:
+            $memberId: '%app.core_member_id%'
+            $clientName: '%app.core_client_name%'
+
+    App\Service\ContactService:
+        arguments:
+            $providerChainSpec: '%app.core_provider_chain_spec%'
+            $providerChainType: '%app.core_provider_chain_type%'
+            $skipProviderChain: '%app.core_skip_provider_chain%'
+
+    App\Service\DomainService:
+        arguments:
+            $providerChainSpec: '%app.core_provider_chain_spec%'
+            $providerChainType: '%app.core_provider_chain_type%'
+            $defaultNs1: '%app.core_default_ns1%'
+            $defaultNs2: '%app.core_default_ns2%'
+            $skipProviderChain: '%app.core_skip_provider_chain%'
+            $debugRequest: '%app.core_debug_request%'
+            $domainCreateNsMandatoryRegistries: '%app.domain_create_ns_mandatory_registries%'
+
+    App\Service\HostService:
+        arguments:
+            $providerChainSpec: '%app.core_provider_chain_spec%'
+            $providerChainType: '%app.core_provider_chain_type%'
+            $skipProviderChain: '%app.core_skip_provider_chain%'
+
+    App\Service\Route53HostedZoneService:
+        arguments:
+            $accessKeyId: '%env(string:AWS_ACCESS_KEY_ID)%'
+            $secretAccessKey: '%env(string:AWS_SECRET_ACCESS_KEY)%'
+            $region: '%env(string:AWS_ROUTE53_REGION)%'
+            $defaultDnssecKmsKeyArn: '%env(string:AWS_ROUTE53_DNSSEC_KMS_KEY_ARN)%'
+
+    App\Service\Route53DnssecKmsService:
+        arguments:
+            $accessKeyId: '%env(string:AWS_ACCESS_KEY_ID)%'
+            $secretAccessKey: '%env(string:AWS_SECRET_ACCESS_KEY)%'
+
+    App\Service\Route53RecordSetService:
+        arguments:
+            $accessKeyId: '%env(string:AWS_ACCESS_KEY_ID)%'
+            $secretAccessKey: '%env(string:AWS_SECRET_ACCESS_KEY)%'
+            $region: '%env(string:AWS_ROUTE53_REGION)%'
+
+    # add more service definitions when explicit configuration is needed
+    # please note that last definitions always *replace* previous ones

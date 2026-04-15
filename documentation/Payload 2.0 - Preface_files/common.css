@@ -1,0 +1,583 @@
+/*
+____________________________________________________________________________
+   |       |
+   | knipp |           Knipp Medien und Kommunikation GmbH
+    -------
+
+    CORE-GATEWAY-PROJECT
+
+    Copyright (C) 2002 by Knipp Medien und Kommunikation GmbH
+    Copyright (C) 2002 by CORE Council of Registrars
+
+    initial author:    Klaus Malorny
+    version:           $Revision: 25932 $
+                       $Date: 2024-05-31 10:43:44 +0200 (Fri, 31 May 2024) $
+                       $Author: Klaus.Malorny $
+*/
+
+@font-face
+{
+  font-family: "Roboto";
+  src: url("Roboto[wdth,wght].ttf") format("truetype");
+  font-weight: 100 1000;
+  font-stretch: condensed expanded;
+}
+
+@font-face
+{
+  font-family: "Roboto";
+  src: url("Roboto-Italic[wdth,wght].ttf") format("truetype");
+  font-weight: 100 1000;
+  font-stretch: condensed expanded;
+  font-style: italic;
+}
+
+
+@font-face
+{
+  font-family: "Roboto Mono";
+  src: url("RobotoMono[wght].ttf") format("truetype");
+  font-weight: 100 1000;
+}
+
+@font-face
+{
+  font-family: "Roboto Mono";
+  src: url("RobotoMono-Italic[wght].ttf") format("truetype");
+  font-weight: 100 1000;
+  font-style: italic;
+}
+
+@font-face
+{
+  font-family: "Material Icons";
+  src: url("MaterialIcons-Regular.ttf") format("truetype");
+}
+
+
+body,
+td,
+th
+{ font-family: "Roboto", sans-serif;
+  font-size: 10pt;
+}
+
+body
+{ margin-bottom: 50pt;
+}
+
+
+.icon
+{ font-family: "Material Icons";
+  line-height: 50%;
+  font-size: 150%;
+  vertical-align: -50%;
+}
+
+.grouptag
+{ border-radius: 1em;
+  background: #002D4E;
+  color: #FFFFFF;
+  padding-right: 6pt;
+  padding-left: 6pt;
+  padding-top: 1pt;
+  padding-bottom: 1pt;
+  font-weight: bold;
+}
+
+.grouptag .icon
+{ padding-right: 4pt;
+  font-weight: normal;
+}
+
+
+/* navigation button */
+
+.navbtns
+{ margin-left: 70pt;
+  margin-top: 15pt;
+  margin-bottom: 15pt;
+}
+
+
+a.navbtn,
+span.navbtn
+{ text-decoration: none;
+  border-bottom: solid 1px #999999;
+  border-right: solid 1px #999999;
+  padding-left: 5px;
+  padding-right: 5px;
+  padding-bottom: 1px;
+  padding-top: 1px;
+  border-radius: 2px;
+}
+
+a.navbtn
+{ color: #000000;
+}
+
+a.navbtn:hover
+{ background: #F0F0f0;
+}
+
+a.navbtn:active
+{ background: #E0E0E0;
+  padding-left: 5px;
+  padding-right: 4px;
+  padding-bottom: 0px;
+  padding-top: 1px;
+  position: relative;
+  top: 1px;
+  border-top: solid 1px #555555;
+  border-left: solid 1px #555555;
+  border-bottom: solid 1px #d0d0d0;
+  border-right: solid 1px #d0d0d0;
+}
+
+span.navbtn
+{ color: #999999;
+}
+
+.navbtn > .icon
+{ padding-right: 0.25em;
+}
+
+.navbtn.empty > .icon
+{ padding-right: 0;
+}
+
+/* title */
+
+.doctitle
+{ font-size: 10pt;
+  border-bottom: solid 1px #000000;
+}
+
+.pagetitle
+{ margin-bottom: 20pt;
+  font-size: 12pt;
+  font-weight: bold;
+}
+
+
+/* table of contents */
+
+.toc
+{ border-spacing: 0;
+  border: 0px;
+  border-collapse: separate;
+}
+
+nav.toc .tocleft
+{ display: inline-block;
+  width: 60pt;
+  text-align: right;
+  vertical-align: baseline;
+}
+
+.tocright
+{ vertical-align: baseline;
+  color: #005A9C;
+  display: inline-block;
+}
+
+.tocentry
+{ margin-left: 10pt;
+}
+
+nav.toc summary
+{ list-style-position: outside;
+}
+
+nav.toc summary::marker
+{ color: #005A9C;
+}
+
+.tocpage
+{ font-weight: bold;
+}
+
+
+.tocinner
+{
+}
+
+
+a.tocpage,
+a.tocinner,
+a.tocpage:visited,
+a.tocinner:visited
+{ text-decoration: none;
+  color: #005A9C;
+}
+
+
+a.tocpage:hover,
+a.tocinner:hover
+{ text-decoration: underline;
+}
+
+
+.tocend
+{ margin-bottom: 15pt;
+  margin-top: 15pt;
+  border-bottom: 1pt solid #999999;
+}
+
+
+/* section title */
+
+.section
+{ border-spacing: 0;
+  border: 0;
+  padding: 0;
+  border-collapse: separate;
+  margin-top: 15pt;
+  margin-bottom: 5pt;
+}
+
+.sectleft
+{ vertical-align: baseline;
+  text-align: right;
+  width: 70pt;
+  padding: 0;
+}
+
+.sectleft span
+{ background: #005A9C;
+  color: #FFFFFF;
+  font-weight: bold;
+  padding-left: 15pt;
+  padding-right: 5pt;
+  border-radius: 1em;
+  margin-right: 2pt;
+}
+
+.sectright
+{ vertical-align: baseline;
+  color: #005A9C;
+  font-weight: bold;
+  padding: 0;
+}
+
+.sectleft,
+.sectright
+{ font-size: 12pt;
+}
+
+/* legend */
+
+.legend
+{ border-spacing: 0;
+  border: 0;
+  padding: 0;
+  border-collapse: separate;
+  margin-bottom: 15pt;
+}
+
+.legendleft
+{ vertical-align: baseline;
+  text-align: right;
+  width: 70pt;
+  padding: 0;
+  color: #005A9C;
+}
+
+.legendright
+{ vertical-align: baseline;
+  color: #005A9C;
+}
+
+
+/* paragraph */
+
+.par,
+.ipar
+{ line-height: 14pt;
+}
+
+.par
+{
+  margin-left: 70pt;
+  margin-right: 30pt;
+  margin-bottom: 5pt;
+}
+
+
+/* list */
+
+
+.tlist
+{ margin-left: 70pt;
+  margin-right: 30pt;
+  margin-bottom: 5pt;
+}
+
+
+.list
+{ margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 2pt;
+}
+
+.ilist
+{ margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 2pt;
+}
+
+.list li,
+.ilist li
+{ margin-bottom: 2pt;
+}
+
+
+/* definition list */
+
+.dterm
+{ font-weight: bold;
+  margin-bottom: 2pt;
+}
+
+
+.ddescr
+{ margin-left: 20pt;
+  margin-bottom: 5pt;
+}
+
+.defs
+{ margin-left: 70pt;
+  margin-right: 30pt;
+  margin-top: 10pt;
+  margin-bottom: 15pt;
+}
+
+.tdefs
+{ margin-left: 70pt;
+  margin-right: 30pt;
+  margin-top: 10pt;
+  margin-bottom: 2pt;
+  padding-left: 5pt;
+  padding-right: 5pt;
+  padding-top: 2pt;
+  padding-bottom: 2pt;
+  border: 1px solid #005A9C;
+}
+
+.idefs
+{ /* empty */
+}
+
+
+/* table */
+
+.table
+{ margin-top: 10pt;
+  margin-bottom: 5pt;
+  margin-left: 70pt;
+  margin-right: 30pt;
+  border-collapse: separate;
+  border-spacing: 2px;
+  padding: 0;
+  border: 0;
+  empty-cells: show;
+}
+
+.itable
+{ margin-top: 5pt;
+  margin-bottom: 5pt;
+  margin-left: 0pt;
+  margin-right: 0pt;
+  border-collapse: separate;
+  border-spacing: 2px;
+  padding: 0;
+  border: 0;
+  empty-cells: show;
+}
+
+
+th.tblcell
+{ text-align: left;
+  vertical-align: bottom;
+  font-weight: bold;
+  border-bottom: 2px solid #005A9C;
+  padding-left: 5pt;
+  padding-right: 5pt;
+  padding-bottom: 1px;
+  padding-top: 3px;
+}
+
+td.tblcell
+{ vertical-align: baseline;
+  border-bottom: 1px solid #005A9C;
+  padding-left: 5pt;
+  padding-right: 5pt;
+  padding-bottom: 1px;
+  padding-top: 3px;
+}
+
+td.tblcell > *:nth-child(n + 2)
+{
+  margin-top: 5pt;
+}
+
+th.highlight,
+td.highlight
+{ background: #E8E8E8;
+}
+
+
+/* simple table */
+
+.stable,
+.istable
+{ border-collapse: separate;
+  border-spacing: 0;
+  padding: 0;
+  border: 0;
+}
+
+.stable
+{ margin-left: 70pt;
+  margin-right: 30pt;
+}
+
+td.stblcell
+{ text-align: left;
+  vertical-align: baseline;
+  padding-left: 0pt;
+  padding-right: 10pt;
+  padding-bottom: 0pt;
+  padding-top: 0pt;
+}
+
+
+/* subtitle */
+
+subtitle
+{ color: #005A9C;
+  font-size: 11pt;
+  margin-top: 15pt;
+  margin-bottom: 5pt;
+  margin-left: 70pt;
+}
+
+
+/* codeblock */
+
+.codeblock
+{ margin-left: 70pt;
+  margin-right: 30pt;
+  margin-top: 10pt;
+  margin-bottom: 2pt;
+  padding: 5pt;
+  border: 1px solid #005A9C;
+}
+
+.icodeblock
+{ /* empty */
+}
+
+
+/* inline styles */
+
+.em
+{ font-weight: bold;
+}
+
+
+span.code,
+.codeblock,
+.icodeblock
+{ font-family: "Roboto Mono", monospace;
+  color: #002D4E;
+}
+
+span.code
+{ background: #EFF2Ff;
+  padding-left: 0.25em;
+  padding-right: 0.25em;
+  border-radius: 4px;
+  font-size: 95%;
+}
+
+.ann
+{ cursor: help;
+  border-bottom: dotted 1px #000000;
+}
+
+a.iref
+{ color: #005A9C;
+  text-decoration: none;
+}
+
+a.iref:hover
+{ text-decoration: underline;
+}
+
+a.xref
+{ color: #005A9C;
+  text-decoration: none;
+}
+
+a.xref:hover
+{ text-decoration: underline;
+}
+
+.note
+{ margin-left: 70pt;
+  margin-right: 30pt;
+}
+
+.inote,
+.note
+{ margin-top: 5pt;
+  margin-bottom: 5pt;
+  border-spacing: 0;
+  border: 0;
+  padding: 0;
+  border-collapse: separate;
+}
+
+.nlabel
+{ vertical-align: top;
+  font-family: "Material Icons";
+  font-size: 30pt;
+  color: #005A9C;
+  padding-right: 5pt;
+}
+
+.nbody
+{ padding-top: 5pt;
+  vertical-align: baseline;
+}
+
+a.permalink
+{ font-family: "Material Icons";
+  font-weight: normal;
+  font-size: 150%;
+  line-height: 50%;
+  vertical-align: -50%;
+  color: #000000;
+  padding-left: .2em;
+  padding-right: .2em;
+  margin-left: .3em;
+  transition: 0.5s;
+  opacity: 0;
+  border-radius: 0.2em;
+  border-style: none;
+}
+
+:hover > a.permalink
+{   opacity: 1;
+}
+
+a.permalink:hover
+{ background: #F0F0f0;
+}
+
+a.permalink:active
+{ background: #E0E0E0;
+}

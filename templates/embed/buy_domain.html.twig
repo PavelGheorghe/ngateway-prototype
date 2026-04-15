@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Buy domain</title>
+  <style>
+    html, body { margin: 0; min-height: 100%; height: 100%; font-family: system-ui, sans-serif; }
+    /* Transparent root so the parent page shows through outside the modal card. */
+    html,
+    body.embed-buy-domain-root {
+      background: transparent;
+    }
+    body.embed-buy-domain-root {
+      box-sizing: border-box;
+      min-height: 100%;
+      height: 100%;
+      margin: 0;
+      color: #0f172a;
+    }
+    .embed-buy-domain-backdrop {
+      min-height: 100%;
+      min-height: 100dvh;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      box-sizing: border-box;
+      /* Semi-transparent scrim: parent UI remains visible around the modal */
+      background: rgba(15, 23, 42, 0.45);
+    }
+    .embed-buy-domain-modal {
+      width: 100%;
+      max-width: 920px;
+      max-height: min(92vh, calc(100dvh - 2rem));
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+      padding: 1.5rem 1.5rem 2rem;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .embed-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+      flex-shrink: 0;
+    }
+    .embed-modal-header h1 {
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 600;
+    }
+    .embed-modal-close {
+      flex-shrink: 0;
+      width: 2.25rem;
+      height: 2.25rem;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #64748b;
+      font-size: 1.75rem;
+      line-height: 1;
+      cursor: pointer;
+      border-radius: 8px;
+    }
+    .embed-modal-close:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .embed-buy-domain-modal > #buyDomainStatus { flex-shrink: 0; }
+    .muted { color: #64748b; font-size: 0.9rem; margin-bottom: 1rem; line-height: 1.45; }
+    label { display: block; font-size: 0.875rem; color: #334155; margin-bottom: 0.35rem; }
+    input[type="text"], input[type="email"], select, textarea {
+      width: 100%; max-width: 28rem; box-sizing: border-box; padding: 0.55rem 0.75rem;
+      border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; margin-bottom: 0.75rem;
+    }
+    textarea { min-height: 3rem; resize: vertical; }
+    .btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 0.25rem; }
+    button.primary {
+      background: #2563eb; color: #fff; border: 0; border-radius: 8px;
+      padding: 0.55rem 1.1rem; font-size: 0.9rem; cursor: pointer;
+    }
+    button.secondary {
+      background: #f1f5f9; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 8px;
+      padding: 0.55rem 1.1rem; font-size: 0.9rem; cursor: pointer;
+    }
+    button.primary:disabled, button.secondary:disabled { opacity: 0.55; cursor: not-allowed; }
+    .err { color: #b91c1c; font-size: 0.9rem; }
+    .ok { color: #15803d; font-size: 0.9rem; }
+    .steps-bar { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; flex-wrap: wrap; align-items: center; }
+    .step-chip {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      padding: 0.35rem 0.65rem; border-radius: 999px; font-size: 0.8rem;
+      background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;
+    }
+    .step-chip.active { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+    .step-chip.done { background: #dcfce7; color: #166534; border-color: #86efac; }
+    .step-pane { display: none; }
+    .step-pane.active { display: block; }
+    #buyDomainWizard {
+      display: none;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-height: 0;
+    }
+    #buyDomainWizard > .steps-bar { flex-shrink: 0; }
+    #step1.step-pane.active {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .step1-inline-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .step1-inline-row input[type="text"] {
+      flex: 1 1 12rem;
+      min-width: 0;
+      width: auto;
+      max-width: none;
+      margin-bottom: 0;
+    }
+    .step1-inline-row .primary { flex-shrink: 0; white-space: nowrap; }
+    .step1-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: auto;
+      padding-top: 1rem;
+    }
+    .summary-box {
+      border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-top: 0.75rem;
+      background: #f8fafc;
+    }
+    .summary-box h2 { margin: 0 0 0.75rem; font-size: 1rem; font-weight: 600; }
+    .summary-box table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .summary-box th, .summary-box td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    .summary-box th { color: #475569; font-weight: 600; width: 5rem; }
+    .ns-list { margin: 0; padding-left: 1.25rem; }
+    pre.raw-json {
+      background: #0f172a; color: #e2e8f0; padding: 0.85rem; border-radius: 8px;
+      font-size: 0.72rem; overflow: auto; max-height: 200px; margin-top: 0.75rem;
+    }
+    details summary { cursor: pointer; color: #475569; font-size: 0.85rem; margin-top: 0.5rem; }
+    #buyDomainSuccess { display: none; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+    .radio-row { display: flex; gap: 1rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+    .radio-row label { display: inline-flex; align-items: center; gap: 0.35rem; margin: 0; cursor: pointer; }
+  </style>
+</head>
+<body class="embed-buy-domain-root">
+  <div class="embed-buy-domain-backdrop">
+    <div class="embed-buy-domain-modal" role="dialog" aria-modal="true" aria-labelledby="buyDomainTitle">
+      <header class="embed-modal-header">
+        <h1 id="buyDomainTitle">Buy domain</h1>
+        <button type="button" class="embed-modal-close" id="buyDomainDismiss" aria-label="Close">×</button>
+      </header>
+      <p class="muted" id="buyDomainStatus">Loading…</p>
+
+  <div id="buyDomainWizard">
+    <div class="steps-bar" aria-hidden="true">
+      <span class="step-chip active" id="chipStep1">1. Availability</span>
+      <span class="step-chip" id="chipStep2">2. Contact</span>
+      <span class="step-chip" id="chipStep3">3. Purchase</span>
+    </div>
+
+    <div id="step1" class="step-pane active">
+      <p class="muted">Enter the full domain you want (e.g. <code>example.eus</code>), then check registry availability.</p>
+      <label for="buyDomainFqdn">Full domain</label>
+      <div class="step1-inline-row">
+        <input type="text" id="buyDomainFqdn" autocomplete="off" placeholder="example.eus" />
+        <button type="button" class="primary" id="step1Check">Check availability</button>
+      </div>
+      <p class="muted" id="step1CheckHint" style="display:none;"></p>
+      <div class="step1-footer">
+        <button type="button" class="secondary" id="step1Next" disabled>Continue to contact</button>
+      </div>
+    </div>
+
+    <div id="step2" class="step-pane">
+      <p class="muted">Create a new registrant contact for this TLD or enter an existing contact ID.</p>
+      <div class="radio-row">
+        <label><input type="radio" name="contactMode" value="create" checked /> Create contact</label>
+        <label><input type="radio" name="contactMode" value="existing" /> Use existing ID</label>
+      </div>
+      <div id="contactExistingBlock" style="display:none;">
+        <label for="contactExistingId">Contact ID</label>
+        <input type="text" id="contactExistingId" maxlength="16" placeholder="abc123" autocomplete="off" />
+      </div>
+      <div id="contactCreateBlock">
+        <label for="cName">Name</label>
+        <input type="text" id="cName" />
+        <label for="cEmail">Email</label>
+        <input type="email" id="cEmail" />
+        <label for="cPhone">Phone (E.164 recommended)</label>
+        <input type="text" id="cPhone" placeholder="+40.7123456789" />
+        <label for="cOrg">Organization</label>
+        <input type="text" id="cOrg" placeholder="N/A" />
+        <label for="cStreet">Street</label>
+        <input type="text" id="cStreet" />
+        <label for="cCity">City</label>
+        <input type="text" id="cCity" />
+        <label for="cState">State / region</label>
+        <input type="text" id="cState" />
+        <label for="cPostal">Postal code</label>
+        <input type="text" id="cPostal" />
+        <label for="cCountry">Country code</label>
+        <input type="text" id="cCountry" maxlength="2" placeholder="US" />
+      </div>
+      <div class="btn-row">
+        <button type="button" class="secondary" id="step2Back">Back</button>
+        <button type="button" class="primary" id="step2Continue">Save &amp; continue</button>
+      </div>
+    </div>
+
+    <div id="step3" class="step-pane">
+      <p class="muted">We will fetch DNS records from Brizy, create the Route53 zone and records, then register the domain with nameservers from AWS.</p>
+      <div class="summary-box" id="step3Recap"></div>
+      <label for="step3EligibilityIntendedUse">Intended use <span class="muted" style="font-weight:400">(eligibility.intended-use — required for some TLDs such as .eus)</span></label>
+      <textarea id="step3EligibilityIntendedUse" rows="3" placeholder="Short description of how the domain will be used"></textarea>
+      <label for="step3LaunchPhase">Launch phase <span class="muted" style="font-weight:400">(optional, must match domain.check if your registry uses phases)</span></label>
+      <input type="text" id="step3LaunchPhase" autocomplete="off" placeholder="e.g. open" />
+      <div class="btn-row">
+        <button type="button" class="secondary" id="step3Back">Back</button>
+        <button type="button" class="primary" id="step3Purchase">Complete purchase</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="buyDomainSuccess">
+    <p class="ok" id="buyDomainSuccessLead"></p>
+    <div class="summary-box" id="successSummary"></div>
+    <div class="btn-row" id="buyDomainFinishRow" style="margin-top:1rem;display:none;">
+      <button type="button" class="primary" id="buyDomainFinish">Finish</button>
+    </div>
+    <details id="successRawWrap">
+      <summary>Technical details (JSON)</summary>
+      <pre class="raw-json" id="successRawJson"></pre>
+    </details>
+  </div>
+
+    </div>
+  </div>
+
+  <script type="application/json" id="embedBuyDomainConfig">{{ { allowedParentOrigins: allowed_parent_origins, trustedAmemberUserId: trusted_amember_user_id }|json_encode|raw }}</script>
+  <script>
+(function () {
+  var cfgEl = document.getElementById('embedBuyDomainConfig');
+  var cfg = { allowedParentOrigins: [] };
+  try {
+    if (cfgEl && cfgEl.textContent) {
+      cfg = JSON.parse(cfgEl.textContent.trim());
+    }
+  } catch (e) {}
+
+  var allowed = cfg.allowedParentOrigins || [];
+  function originAllowed(origin) {
+    if (!allowed.length) return true;
+    return allowed.indexOf(origin) !== -1;
+  }
+
+  var state = {
+    domainName: '',
+    registryId: '.com',
+    fqdn: '',
+    step1Done: false,
+    contactId: '',
+    step2Done: false,
+    currentStep: 1,
+    lastPurchaseResponse: null,
+    lastPurchaseSummary: null
+  };
+
+  function postToParent(msg) {
+    if (window.parent === window) return;
+    var target = '*';
+    if (window.__BUY_DOMAIN_CONTEXT__ && window.__BUY_DOMAIN_CONTEXT__.parentOrigin) {
+      target = window.__BUY_DOMAIN_CONTEXT__.parentOrigin;
+    }
+    window.parent.postMessage(msg, target);
+  }
+
+  document.getElementById('buyDomainDismiss').addEventListener('click', function () {
+    postToParent({ type: 'PUNTU_BUY_DOMAIN_CLOSE' });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      postToParent({ type: 'PUNTU_BUY_DOMAIN_CLOSE' });
+    }
+  });
+
+  function setStatus(text, isError) {
+    var el = document.getElementById('buyDomainStatus');
+    var t = text == null ? '' : String(text);
+    el.textContent = t;
+    el.hidden = t.trim() === '';
+    el.className = isError ? 'err' : (t.indexOf('✓') === 0 ? 'ok' : 'muted');
+  }
+
+  /** Simple parse: last label = public suffix for common TLDs (not full PSL). */
+  function parseFqdn(input) {
+    var fqdn = String(input || '').trim().toLowerCase().replace(/\.+$/, '');
+    var i = fqdn.lastIndexOf('.');
+    if (i <= 0) return null;
+    return {
+      domainName: fqdn.slice(0, i),
+      registryId: '.' + fqdn.slice(i + 1),
+      fqdn: fqdn
+    };
+  }
+
+  function fqdnForRegistry(domainName, registryId) {
+    var dn = String(domainName || '').trim().toLowerCase().replace(/\.+$/, '');
+    var reg = String(registryId || '').trim();
+    if (!dn) return '';
+    if (!reg) return dn;
+    if (reg[0] !== '.') reg = '.' + reg;
+    var suffix = reg.toLowerCase();
+    return dn.endsWith(suffix) ? dn : dn + suffix;
+  }
+
+  function normalizeAvail(v) {
+    if (v === true || v === 1 || v === '1') return true;
+    if (v === false || v === 0 || v === '0') return false;
+    if (typeof v === 'string') {
+      var s = v.trim().toLowerCase();
+      if (s === 'true' || s === 'yes') return true;
+      if (s === 'false' || s === 'no') return false;
+    }
+    return null;
+  }
+
+  function checkResponseAvailable(body) {
+    if (!body || !body.success) return false;
+    var d = body.data || {};
+    var a = normalizeAvail(d['domain.1.available']);
+    if (a === true) return true;
+    if (a === false) return false;
+    var legacy = normalizeAvail(d['domain.avail']);
+    if (legacy === true) return true;
+    if (legacy === false) return false;
+    return false;
+  }
+
+  function setStep(n) {
+    var prevStep = state.currentStep;
+    state.currentStep = n;
+    for (var s = 1; s <= 3; s++) {
+      document.getElementById('step' + s).classList.toggle('active', s === n);
+      var chip = document.getElementById('chipStep' + s);
+      chip.classList.remove('active', 'done');
+      if (s < n) chip.classList.add('done');
+      if (s === n) chip.classList.add('active');
+    }
+    if (n === 2 && prevStep === 1) {
+      prefetchRegistryContactForStep2();
+    }
+    if (n === 3) {
+      renderStep3Recap();
+    }
+  }
+
+  /** If we already stored a CORE contact for this amember + TLD, pre-select "Use existing ID". */
+  function prefetchRegistryContactForStep2() {
+    var reg = state.registryId || '';
+    if (!reg) {
+      return;
+    }
+    var params = new URLSearchParams({ registryId: reg });
+    fetch('/api/brizy/registry-contact?' + params.toString(), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.success || !data.found || !data.contactId) {
+          return;
+        }
+        var existingRadio = document.querySelector('input[name="contactMode"][value="existing"]');
+        if (existingRadio) {
+          existingRadio.checked = true;
+        }
+        document.getElementById('contactExistingId').value = data.contactId;
+        syncContactModeUi();
+        setStatus('✓ Using saved registry contact for this TLD. Review and click Save & continue.', false);
+      })
+      .catch(function () {});
+  }
+
+  function renderStep3Recap() {
+    var el = document.getElementById('step3Recap');
+    var reg = state.registryId || '';
+    var lpRecap = (document.getElementById('step3LaunchPhase').value || '').trim();
+    var lpRow = lpRecap ? ('<tr><th>Launch phase</th><td>' + escapeHtml(lpRecap) + '</td></tr>') : '';
+    el.innerHTML = ''
+      + '<h2>Ready to register</h2>'
+      + '<table><tbody>'
+      + '<tr><th>Domain</th><td>' + escapeHtml(state.fqdn || fqdnForRegistry(state.domainName, reg)) + '</td></tr>'
+      + '<tr><th>Registry</th><td>' + escapeHtml(reg) + '</td></tr>'
+      + lpRow
+      + '<tr><th>Contact</th><td>' + escapeHtml(state.contactId) + '</td></tr>'
+      + '</tbody></table>';
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function renderSuccess(summary, fullResponse) {
+    state.lastPurchaseSummary = summary || {};
+    document.getElementById('buyDomainWizard').style.display = 'none';
+    document.getElementById('buyDomainSuccess').style.display = 'flex';
+    document.getElementById('buyDomainFinishRow').style.display = 'flex';
+    document.getElementById('buyDomainSuccessLead').textContent = '✓ Domain purchase completed.';
+    var box = document.getElementById('successSummary');
+    var ns = (summary && summary.nameServers) ? summary.nameServers : [];
+    var rec = (summary && summary.dnsRecords) ? summary.dnsRecords : [];
+    var rows = '';
+    for (var i = 0; i < rec.length; i++) {
+      var r = rec[i] || {};
+      rows += '<tr><td>' + escapeHtml(r.type || '') + '</td><td>' + escapeHtml(r.host || '') + '</td><td>' + escapeHtml(r.value || '') + '</td><td>' + escapeHtml(String(r.ttl != null ? r.ttl : '')) + '</td></tr>';
+    }
+    var nsHtml = '<ul class="ns-list">';
+    for (var j = 0; j < ns.length; j++) {
+      nsHtml += '<li>' + escapeHtml(ns[j]) + '</li>';
+    }
+    nsHtml += '</ul>';
+    box.innerHTML = ''
+      + '<h2>Registration summary</h2>'
+      + '<table><tbody>'
+      + '<tr><th>Domain</th><td>' + escapeHtml(summary.domain || '') + '</td></tr>'
+      + '<tr><th>Registry</th><td>' + escapeHtml(summary.registryId || '') + '</td></tr>'
+      + '<tr><th>Contact ID</th><td>' + escapeHtml(summary.contactId || '') + '</td></tr>'
+      + '<tr><th>Hosted zone</th><td>' + escapeHtml(summary.hostedZoneId || '') + '</td></tr>'
+      + '<tr><th>Nameservers</th><td>' + nsHtml + '</td></tr>'
+      + '</tbody></table>'
+      + '<p style="margin:0.75rem 0 0.25rem;font-size:0.9rem;font-weight:600;color:#334155">DNS records applied</p>'
+      + '<table><thead><tr><th>Type</th><th>Host</th><th>Value</th><th>TTL</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    document.getElementById('successRawJson').textContent = JSON.stringify(fullResponse, null, 2);
+  }
+
+  function syncContactModeUi() {
+    var mode = document.querySelector('input[name="contactMode"]:checked');
+    mode = mode ? mode.value : 'create';
+    document.getElementById('contactCreateBlock').style.display = mode === 'create' ? 'block' : 'none';
+    document.getElementById('contactExistingBlock').style.display = mode === 'existing' ? 'block' : 'none';
+  }
+
+  document.querySelectorAll('input[name="contactMode"]').forEach(function (r) {
+    r.addEventListener('change', syncContactModeUi);
+  });
+
+  document.getElementById('step1Check').addEventListener('click', function () {
+    var raw = (document.getElementById('buyDomainFqdn').value || '').trim();
+    var parsed = parseFqdn(raw);
+    var hintEl = document.getElementById('step1CheckHint');
+    if (!parsed) {
+      setStatus('');
+      hintEl.style.display = 'block';
+      hintEl.className = 'err';
+      hintEl.textContent = 'Enter a full domain name (e.g. example.eus).';
+      return;
+    }
+    state.domainName = parsed.domainName;
+    state.registryId = parsed.registryId;
+    state.fqdn = parsed.fqdn;
+    state.step1Done = false;
+    document.getElementById('step1Next').disabled = true;
+    setStatus('');
+    hintEl.style.display = 'block';
+    hintEl.className = 'muted';
+    hintEl.textContent = 'Checking…';
+    var checkPayload = { domains: [parsed.domainName], registryId: parsed.registryId };
+    fetch('/api/domain/check', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-Puntu-Api-Key': cfg.trustedAmemberUserId },
+      body: JSON.stringify(checkPayload)
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        setStatus('');
+        hintEl.style.display = 'block';
+        if (res.ok && res.body && res.body.success && checkResponseAvailable(res.body)) {
+          state.step1Done = true;
+          document.getElementById('step1Next').disabled = false;
+          hintEl.className = 'ok';
+          hintEl.textContent = 'Available';
+        } else {
+          hintEl.className = 'err';
+          hintEl.textContent = 'Unavailable';
+        }
+      })
+      .catch(function () {
+        setStatus('');
+        hintEl.style.display = 'block';
+        hintEl.className = 'err';
+        hintEl.textContent = 'Unavailable';
+      });
+  });
+
+  document.getElementById('step1Next').addEventListener('click', function () {
+    if (!state.step1Done) return;
+    setStep(2);
+    setStatus('Step 2: registrant contact.');
+  });
+
+  document.getElementById('step2Back').addEventListener('click', function () {
+    setStep(1);
+    setStatus('Step 1: check availability.');
+  });
+
+  document.getElementById('step2Continue').addEventListener('click', function () {
+    var mode = document.querySelector('input[name="contactMode"]:checked');
+    mode = mode ? mode.value : 'create';
+    if (mode === 'existing') {
+      var cid = (document.getElementById('contactExistingId').value || '').trim();
+      if (cid.length < 3 || cid.length > 16) {
+        setStatus('Contact ID must be 3–16 characters.', true);
+        return;
+      }
+      state.contactId = cid;
+      state.step2Done = true;
+      setStep(3);
+      setStatus('Step 3: complete purchase.');
+      return;
+    }
+    var payload = {
+      registryId: state.registryId,
+      contact: {
+        name: (document.getElementById('cName').value || '').trim(),
+        email: (document.getElementById('cEmail').value || '').trim(),
+        phone: (document.getElementById('cPhone').value || '').trim(),
+        organization: (document.getElementById('cOrg').value || '').trim(),
+        address: (document.getElementById('cStreet').value || '').trim(),
+        city: (document.getElementById('cCity').value || '').trim(),
+        state: (document.getElementById('cState').value || '').trim(),
+        postalcode: (document.getElementById('cPostal').value || '').trim(),
+        countrycode: (document.getElementById('cCountry').value || '').trim() || 'US'
+      }
+    };
+    setStatus('Creating contact…');
+    fetch('/api/contact/create', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (res.ok && res.body.success && res.body.contactId) {
+          state.contactId = res.body.contactId;
+          state.step2Done = true;
+          setStep(3);
+          setStatus('Step 3: complete purchase.');
+        } else {
+          setStatus((res.body && res.body.message) ? res.body.message : 'Contact create failed', true);
+        }
+      })
+      .catch(function (err) {
+        setStatus(String(err), true);
+      });
+  });
+
+  document.getElementById('step3Back').addEventListener('click', function () {
+    setStep(2);
+    setStatus('Step 2: contact.');
+  });
+
+  document.getElementById('step3Purchase').addEventListener('click', function () {
+    if (!state.fqdn || !state.contactId) {
+      setStatus('Missing domain or contact.', true);
+      return;
+    }
+    var intended = (document.getElementById('step3EligibilityIntendedUse').value || '').trim();
+    var regLower = (state.registryId || '').toLowerCase();
+    if ((regLower === '.eus' || regLower.endsWith('.eus')) && !intended) {
+      setStatus('Intended use is required for this registry (eligibility.intended-use).', true);
+      return;
+    }
+    setStatus('Fetching DNS records from Brizy…');
+    document.getElementById('step3Purchase').disabled = true;
+    postToParent({ type: 'PUNTU_BUY_DOMAIN_REQUEST_DNS', domainName: state.fqdn });
+  });
+
+  function applyDomainPurchase(dnsRecords) {
+    if (!dnsRecords || !dnsRecords.length) {
+      document.getElementById('step3Purchase').disabled = false;
+      setStatus('No DNS records returned from Brizy. Cannot complete purchase.', true);
+      return;
+    }
+    setStatus('Creating hosted zone, DNS, and domain registration…');
+    var launchPh = (document.getElementById('step3LaunchPhase').value || '').trim();
+    var intendedUse = (document.getElementById('step3EligibilityIntendedUse').value || '').trim();
+    var purchaseBody = {
+      domainName: state.domainName,
+      registryId: state.registryId,
+      contactId: state.contactId,
+      dnsRecords: dnsRecords,
+      periodValue: 1,
+      periodUnit: 'y',
+      projectId: (window.__BUY_DOMAIN_CONTEXT__ || {}).projectId
+    };
+    if (intendedUse) {
+      purchaseBody.eligibilityIntendedUse = intendedUse;
+    }
+    if (launchPh) {
+      purchaseBody.launchPhase = launchPh;
+    }
+    fetch('/api/brizy/domain-purchase', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(purchaseBody)
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        state.lastPurchaseResponse = res.body;
+        document.getElementById('step3Purchase').disabled = false;
+        if (res.ok && res.body.success) {
+          setStatus('✓ Complete.', false);
+          renderSuccess(res.body.summary || {}, res.body);
+        } else {
+          var msg = (res.body && res.body.message) ? res.body.message : 'Purchase failed';
+          setStatus(msg, true);
+        }
+      })
+      .catch(function (err) {
+        document.getElementById('step3Purchase').disabled = false;
+        setStatus(String(err), true);
+      });
+  }
+
+  window.addEventListener('message', function (ev) {
+    if (!originAllowed(ev.origin)) {
+      return;
+    }
+    var data = ev.data;
+    if (!data || !data.type) {
+      return;
+    }
+    if (data.type === 'PUNTU_BUY_DOMAIN_INIT') {
+      var payload = data.payload || {};
+      if (cfg.trustedAmemberUserId != null && String(cfg.trustedAmemberUserId) !== '') {
+        payload.amemberUserId = cfg.trustedAmemberUserId;
+      }
+      window.__BUY_DOMAIN_CONTEXT__ = payload;
+      setStatus('Follow the steps to check availability, add a contact, then complete the purchase.');
+      document.getElementById('buyDomainWizard').style.display = 'flex';
+      document.getElementById('buyDomainSuccess').style.display = 'none';
+      document.getElementById('buyDomainFinishRow').style.display = 'none';
+      syncContactModeUi();
+      setStep(1);
+      return;
+    }
+    if (data.type === 'PUNTU_BUY_DOMAIN_DNS_RESULT') {
+      var p = data.payload || {};
+      if (p.error) {
+        document.getElementById('step3Purchase').disabled = false;
+        setStatus(p.error, true);
+        return;
+      }
+      applyDomainPurchase(p.dnsRecords || []);
+    }
+  });
+
+  document.getElementById('buyDomainFinish').addEventListener('click', function () {
+    var s = state.lastPurchaseSummary || {};
+    var ctx = window.__BUY_DOMAIN_CONTEXT__ || {};
+    postToParent({
+      type: 'PUNTU_BUY_DOMAIN_COMPLETE',
+      payload: {
+        domain: s.domain || '',
+        registryId: s.registryId || '',
+        contactId: s.contactId || '',
+        projectId: ctx.projectId != null ? ctx.projectId : null,
+        amemberUserId: ctx.amemberUserId != null ? ctx.amemberUserId : null
+      }
+    });
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    postToParent({ type: 'PUNTU_BUY_DOMAIN_READY' });
+  });
+})();
+  </script>
+</body>
+</html>

@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NGateway Domain Transfer Wizard</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+    crossorigin="anonymous"
+  >
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { background: #f8f9fa; }
+    .viewport-wrapper { min-height: 100vh; width: 100%; padding: 1.25rem; }
+    .step-pane { display: none; }
+    .step-pane.active { display: block; }
+    .step-indicator { border: 1px solid #dbe1ea; border-radius: 8px; background: #fff; padding: .65rem .8rem; height: 100%; }
+    .step-indicator.active { border-left: 4px solid #0d6efd; }
+    .step-indicator.done { border-left: 4px solid #198754; }
+    .step-indicator.error { border-left: 4px solid #dc3545; }
+    #responseView { min-height: 160px; max-height: 360px; overflow: auto; }
+    .mono { font-family: ui-monospace, monospace; font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <main class="viewport-wrapper d-flex flex-column">
+    <div class="container-fluid px-0">
+      <div class="row g-3 mb-3">
+        <div class="col-12">
+          <div class="card shadow-sm border-0">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                <div>
+                  <h1 class="h4 mb-2">NGateway Domain Transfer Wizard</h1>
+                  <p class="mb-0 text-secondary">
+                    Inbound transfer flow. CORE Payload 2.0 uses <code>domain.transfer.request</code> to start a transfer; the poll queue is read with <code>poll.request</code> and cleared with <code>poll.acknowledge</code> (there is no <code>poll.queue</code> command in the bundled spec).
+                  </p>
+                  <p class="mb-0 text-secondary small mt-2">Sequence: <code>domain.check</code> → optional <code>domain.authinfo.request</code> (code for domains on <em>your</em> member) <em>or</em> skip and paste code from the losing registrar → <code>domain.inquire</code> + auth → contacts → <code>domain.transfer.request</code> → poll.</p>
+                </div>
+                <button id="resetWizardBtn" class="btn btn-outline-secondary btn-sm">Reset wizard</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-md-4 col-lg-3"><div id="indicator-step1" class="step-indicator"><div class="fw-semibold">1. check</div><div class="small text-secondary">domain.check</div></div></div>
+        <div class="col-6 col-md-4 col-lg-3"><div id="indicator-step2" class="step-indicator"><div class="fw-semibold">2. Get code</div><div class="small text-secondary">authinfo.request</div></div></div>
+        <div class="col-6 col-md-4 col-lg-3"><div id="indicator-step3" class="step-indicator"><div class="fw-semibold">3. inquire</div><div class="small text-secondary">+ auth</div></div></div>
+        <div class="col-6 col-md-4 col-lg-3"><div id="indicator-step4" class="step-indicator"><div class="fw-semibold">4. contact.inq</div><div class="small text-secondary">Source contacts</div></div></div>
+        <div class="col-6 col-md-4 col-lg-3"><div id="indicator-step5" class="step-indicator"><div class="fw-semibold">5. contact.crt</div><div class="small text-secondary">Gaining</div></div></div>
+        <div class="col-6 col-md-4 col-lg-3"><div id="indicator-step6" class="step-indicator"><div class="fw-semibold">6. Transfer</div><div class="small text-secondary">transfer.request</div></div></div>
+        <div class="col-6 col-md-4 col-lg-3"><div id="indicator-step7" class="step-indicator"><div class="fw-semibold">7. Poll</div><div class="small text-secondary">poll</div></div></div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-12 col-xl-8">
+          <div class="card shadow-sm border-0">
+            <div class="card-body">
+              <div id="step1" class="step-pane">
+                <h2 class="h6">Step 1 — <code>domain.check</code></h2>
+                <p class="text-secondary small mb-3">Retrieve availability / transfer-related pricing hints for the name at this registry.</p>
+                <div class="row g-2">
+                  <div class="col-12 col-md-6"><label class="form-label">Domain name</label><input id="domainName" class="form-control" placeholder="example.com"></div>
+                  <div class="col-12 col-md-3"><label class="form-label">Registry ID</label><input id="registryId" class="form-control" value=".com"></div>
+                  <div class="col-12 col-md-3"><label class="form-label">Launch phase <span class="text-secondary fw-normal">(optional)</span></label><input id="launchPhase" class="form-control" placeholder="e.g. open"></div>
+                </div>
+                <div class="mt-3"><button id="runStep1Btn" class="btn btn-primary">Run domain.check</button></div>
+              </div>
+
+              <div id="step2" class="step-pane">
+                <h2 class="h6">Step 2 — <code>domain.authinfo.request</code> (optional)</h2>
+                <p class="text-secondary small mb-3">If this domain is <strong>sponsored by your CORE member</strong>, the gateway can return the current transfer code (<code>domain.authinfo</code> in the response). If the name is still at another registrar, obtain the code from them and use <strong>Skip</strong> below, then paste it in step 3.</p>
+                <div class="row g-2">
+                  <div class="col-12 col-md-6"><label class="form-label">domain.id <span class="text-secondary fw-normal">(optional)</span></label><input id="authinfoRequestDomainId" class="form-control font-monospace" placeholder="from domain.inquire if known" autocomplete="off"></div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                  <button type="button" id="runStep2AuthinfoBtn" class="btn btn-primary">Run domain.authinfo.request</button>
+                  <button type="button" id="skipStep2Btn" class="btn btn-outline-secondary">Skip — I already have the code</button>
+                </div>
+              </div>
+
+              <div id="step3" class="step-pane">
+                <h2 class="h6">Step 3 — <code>domain.inquire</code> + <code>domain.authinfo</code></h2>
+                <p class="text-secondary small mb-3">Validates the auth code for many registries and returns <code>contact.N.id</code> / <code>contact.N.type</code> for mapping.</p>
+                <div class="row g-2">
+                  <div class="col-12 col-md-8"><label class="form-label">Auth / EPP code</label><input id="authinfo" type="password" class="form-control" autocomplete="off"></div>
+                </div>
+                <p class="small text-secondary mt-2 mb-0">Authinfo is kept in memory for this session only (not saved with “Reset” persistence).</p>
+                <div class="mt-3"><button id="runStep3Btn" class="btn btn-primary">Run domain.inquire (with authinfo)</button></div>
+              </div>
+
+              <div id="step4" class="step-pane">
+                <h2 class="h6">Step 4 — <code>contact.inquire</code></h2>
+                <p class="text-secondary small mb-3">Loads each distinct losing-registrar contact handle from step 3. Responses appear in the progress panel.</p>
+                <div class="mt-3"><button id="runStep4Btn" class="btn btn-primary">Run contact.inquire for all handles</button></div>
+              </div>
+
+              <div id="step5" class="step-pane">
+                <h2 class="h6">Step 5 — Gaining contacts (<code>contact.create</code>)</h2>
+                <p class="text-secondary small mb-2">For each role from <code>domain.inquire</code>, enter the <strong>new</strong> gaining-registrar contact ID (3–16 chars), or create one below and paste the returned ID into the row.</p>
+                <div id="gainingSlotsWrap" class="table-responsive mb-3"><table class="table table-sm align-middle"><thead><tr><th>#</th><th>Type</th><th>Source ID</th><th>Gaining contact ID</th><th></th></tr></thead><tbody id="gainingSlotsBody"></tbody></table></div>
+                <hr>
+                <p class="small fw-semibold mb-2">Create gaining contact (applies to selected row)</p>
+                <div class="row g-2 mb-2">
+                  <div class="col-12 col-md-4"><label class="form-label">Apply to slot index</label><select id="createTargetSlot" class="form-select form-select-sm"></select></div>
+                </div>
+                <div class="row g-2">
+                  <div class="col-12 col-md-6"><label class="form-label">Name</label><input id="gContactName" class="form-control form-control-sm"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Email</label><input id="gContactEmail" class="form-control form-control-sm"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Address</label><input id="gContactAddress" class="form-control form-control-sm"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">City</label><input id="gContactCity" class="form-control form-control-sm"></div>
+                  <div class="col-12 col-md-4"><label class="form-label">State</label><input id="gContactState" class="form-control form-control-sm"></div>
+                  <div class="col-12 col-md-4"><label class="form-label">Postal</label><input id="gContactPostal" class="form-control form-control-sm"></div>
+                  <div class="col-12 col-md-4"><label class="form-label">Country</label><input id="gContactCountry" class="form-control form-control-sm" value="US"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Phone</label><input id="gContactPhone" class="form-control form-control-sm" placeholder="+1.0000000000"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Organization</label><input id="gContactOrg" class="form-control form-control-sm"></div>
+                </div>
+                <div class="mt-2"><button type="button" id="prefillFromSourceBtn" class="btn btn-outline-secondary btn-sm me-2">Prefill from source contact.inquire</button><button type="button" id="runContactCreateBtn" class="btn btn-primary btn-sm">Run contact.create</button></div>
+              </div>
+
+              <div id="step6" class="step-pane">
+                <h2 class="h6">Step 6 — <code>domain.transfer.request</code></h2>
+                <p class="text-secondary small mb-3">Submits the inbound transfer using gaining contact IDs from step 5, the same authinfo, and optional NS / update / period fields.</p>
+                <div class="row g-2">
+                  <div class="col-12"><label class="form-label">Auth / EPP code</label><input id="authinfoTransfer" type="password" class="form-control" autocomplete="off"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">Update (optional, CORE <code>update</code>)</label><input id="transferUpdate" class="form-control" placeholder="e.g. nameservers, contacts"></div>
+                  <div class="col-6 col-md-3"><label class="form-label">Period value</label><input id="transferPeriodValue" type="number" min="0" max="99" class="form-control" value="0" title="0 = omit period"></div>
+                  <div class="col-6 col-md-3"><label class="form-label">Period unit</label><select id="transferPeriodUnit" class="form-select"><option value="y" selected>y</option><option value="m">m</option></select></div>
+                  <div class="col-12 col-md-6"><label class="form-label">NS1</label><input id="tns1" class="form-control" placeholder="optional"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">NS2</label><input id="tns2" class="form-control" placeholder="optional"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">NS3</label><input id="tns3" class="form-control" placeholder="optional"></div>
+                  <div class="col-12 col-md-6"><label class="form-label">NS4</label><input id="tns4" class="form-control" placeholder="optional"></div>
+                </div>
+                <div class="mt-3"><button id="runStep6Btn" class="btn btn-success">Run domain.transfer.request</button></div>
+              </div>
+
+              <div id="step7" class="step-pane">
+                <h2 class="h6">Step 7 — Poll queue</h2>
+                <p class="text-secondary small mb-3">Use <code>poll.request</code> to dequeue messages; acknowledge with <code>poll.acknowledge</code> using <code>msg.id</code>. Watch <code>msg.type</code> (e.g. transfer-related notices) and any domain fields in the response.</p>
+                <div class="row g-2 mb-2">
+                  <div class="col-12 col-md-6"><label class="form-label">msg.id hint (optional)</label><input id="pollMsgId" class="form-control" placeholder="omit for oldest unread"></div>
+                  <div class="col-12 col-md-6 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" id="pollAutoAck"><label class="form-check-label" for="pollAutoAck">Set msg.autoack true on request</label></div></div>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                  <button type="button" id="pollOnceBtn" class="btn btn-primary">poll.request once</button>
+                  <button type="button" id="pollDrainBtn" class="btn btn-outline-primary">Drain up to 25 messages</button>
+                </div>
+                <p class="small text-secondary mt-3 mb-0" id="pollHint"></p>
+              </div>
+
+              <div class="d-flex justify-content-between mt-4">
+                <button id="prevStepBtn" class="btn btn-outline-secondary">Back</button>
+                <div id="gateMessage" class="small text-secondary align-self-center"></div>
+                <button id="nextStepBtn" class="btn btn-outline-primary">Next</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+          <div class="card shadow-sm border-0 h-100">
+            <div class="card-body d-flex flex-column">
+              <h2 class="h6">Response / Progress</h2>
+              <div class="small text-secondary mb-2">Latest API response and wizard state (authinfo excluded from saved state).</div>
+              <pre id="responseView" class="bg-dark text-light rounded p-2 flex-grow-1 mb-0 mono">{}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script>
+    const STORAGE_KEY = 'ngatewayTransferWizard.v2';
+    const STEP_IDS = ['step1', 'step2', 'step3', 'step4', 'step5', 'step6', 'step7'];
+    const INDICATOR_IDS = ['indicator-step1', 'indicator-step2', 'indicator-step3', 'indicator-step4', 'indicator-step5', 'indicator-step6', 'indicator-step7'];
+    let authinfoMemory = '';
+    const DEFAULT_STATE = {
+      currentStep: 1,
+      steps: { step1: 'pending', step2: 'pending', step3: 'pending', step4: 'pending', step5: 'pending', step6: 'pending', step7: 'pending' },
+      forms: {
+        domainName: '', registryId: '.com', launchPhase: '',
+        authinfoRequestDomainId: '',
+        transferUpdate: '', transferPeriodValue: '0', transferPeriodUnit: 'y',
+        tns1: '', tns2: '', tns3: '', tns4: '',
+        gContactName: '', gContactEmail: '', gContactAddress: '',
+        gContactCity: '', gContactState: '', gContactPostal: '', gContactCountry: 'US',
+        gContactPhone: '', gContactOrg: '',
+        pollMsgId: '', pollAutoAck: false
+      },
+      flow: {
+        lastResponse: {},
+        domainContacts: [],
+        contactInquiries: {},
+        gainingBySlotIndex: {}
+      }
+    };
+    let state = loadState();
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return structuredClone(DEFAULT_STATE);
+        const parsed = JSON.parse(raw);
+        return {
+          ...structuredClone(DEFAULT_STATE),
+          ...parsed,
+          steps: { ...DEFAULT_STATE.steps, ...(parsed.steps || {}) },
+          forms: { ...DEFAULT_STATE.forms, ...(parsed.forms || {}) },
+          flow: { ...DEFAULT_STATE.flow, ...(parsed.flow || {}), domainContacts: parsed.flow?.domainContacts || [], contactInquiries: parsed.flow?.contactInquiries || {}, gainingBySlotIndex: parsed.flow?.gainingBySlotIndex || {} }
+        };
+      } catch (_e) {
+        return structuredClone(DEFAULT_STATE);
+      }
+    }
+
+    function saveState() {
+      const copy = JSON.parse(JSON.stringify(state));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(copy));
+    }
+
+    function normalizeRegistry(value) {
+      const v = String(value || '').trim();
+      return !v ? '.com' : (v.startsWith('.') ? v : '.' + v);
+    }
+
+    function domainCheckName(domainName, registryId) {
+      const dn = String(domainName || '').trim().toLowerCase();
+      const reg = normalizeRegistry(registryId).toLowerCase();
+      return dn.endsWith(reg) ? dn.slice(0, dn.length - reg.length) : dn;
+    }
+
+    function setResponse(data) {
+      state.flow.lastResponse = data;
+      document.getElementById('responseView').textContent = JSON.stringify(data, null, 2);
+      saveState();
+    }
+
+    function api(path, method, body) {
+      return fetch(path, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+      }).then(async (res) => res.json().catch(() => ({})));
+    }
+
+    function slotKey(idx) { return String(idx); }
+
+    function renderGainingTable() {
+      const tbody = document.getElementById('gainingSlotsBody');
+      const sel = document.getElementById('createTargetSlot');
+      if (!tbody || !sel) return;
+      tbody.innerHTML = '';
+      sel.innerHTML = '';
+      const slots = state.flow.domainContacts || [];
+      slots.forEach((slot) => {
+        const tr = document.createElement('tr');
+        const g = (state.flow.gainingBySlotIndex && state.flow.gainingBySlotIndex[slotKey(slot.index)]) || '';
+        tr.innerHTML =
+          '<td>' + slot.index + '</td>' +
+          '<td class="mono">' + (slot.type || '') + '</td>' +
+          '<td class="mono">' + (slot.id || '') + '</td>' +
+          '<td><input type="text" class="form-control form-control-sm gaining-id-input mono" data-slot-index="' + slot.index + '" value="' + (g || '').replace(/"/g, '&quot;') + '" maxlength="16"></td>' +
+          '<td><button type="button" class="btn btn-sm btn-outline-secondary btn-prefill-slot" data-slot-index="' + slot.index + '">Prefill create form</button></td>';
+        tbody.appendChild(tr);
+      });
+      slots.forEach((slot) => {
+        const o = document.createElement('option');
+        o.value = String(slot.index);
+        o.textContent = 'Slot ' + slot.index + ' (' + (slot.type || '?') + ')';
+        sel.appendChild(o);
+      });
+      tbody.querySelectorAll('.gaining-id-input').forEach((inp) => {
+        inp.addEventListener('input', () => {
+          const idx = inp.getAttribute('data-slot-index');
+          if (!state.flow.gainingBySlotIndex) state.flow.gainingBySlotIndex = {};
+          state.flow.gainingBySlotIndex[slotKey(idx)] = inp.value.trim();
+          saveState();
+        });
+      });
+      tbody.querySelectorAll('.btn-prefill-slot').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const idx = btn.getAttribute('data-slot-index');
+          const selEl = document.getElementById('createTargetSlot');
+          if (selEl) selEl.value = idx;
+          prefillCreateFromSource(parseInt(idx, 10));
+        });
+      });
+    }
+
+    function prefillCreateFromSource(slotIndex) {
+      const slot = (state.flow.domainContacts || []).find((s) => s.index === slotIndex);
+      if (!slot) return;
+      const inq = state.flow.contactInquiries && state.flow.contactInquiries[slot.id];
+      const d = inq && inq.data ? inq.data : {};
+      const pick = (keys) => {
+        for (const k of keys) {
+          if (d[k] != null && String(d[k]).trim() !== '') return String(d[k]).trim();
+        }
+        return '';
+      };
+      document.getElementById('gContactName').value = pick(['contact.name', 'CONTACT.NAME']);
+      document.getElementById('gContactEmail').value = pick(['contact.email', 'CONTACT.EMAIL']);
+      document.getElementById('gContactAddress').value = pick(['contact.address.street.1', 'CONTACT.ADDRESS.STREET.1']);
+      document.getElementById('gContactCity').value = pick(['contact.address.city', 'CONTACT.ADDRESS.CITY']);
+      document.getElementById('gContactState').value = pick(['contact.address.state', 'CONTACT.ADDRESS.STATE']);
+      document.getElementById('gContactPostal').value = pick(['contact.address.postalcode', 'CONTACT.ADDRESS.POSTALCODE']);
+      document.getElementById('gContactCountry').value = pick(['contact.address.countrycode', 'CONTACT.ADDRESS.COUNTRYCODE']) || 'US';
+      document.getElementById('gContactPhone').value = pick(['contact.voice.number', 'CONTACT.VOICE.NUMBER']);
+      document.getElementById('gContactOrg').value = pick(['contact.organization', 'CONTACT.ORGANIZATION']);
+    }
+
+    function canAccessStep(stepNumber) {
+      if (stepNumber <= 1) return true;
+      if (stepNumber === 2) return state.steps.step1 === 'done';
+      if (stepNumber === 3) return state.steps.step2 === 'done';
+      if (stepNumber === 4) return state.steps.step3 === 'done';
+      if (stepNumber === 5) return state.steps.step4 === 'done';
+      if (stepNumber === 6) return state.steps.step5 === 'done';
+      if (stepNumber === 7) return state.steps.step6 === 'done';
+      return true;
+    }
+
+    function updateIndicators() {
+      for (let i = 0; i < INDICATOR_IDS.length; i++) {
+        const key = 'step' + (i + 1);
+        const el = document.getElementById(INDICATOR_IDS[i]);
+        el.classList.remove('active', 'done', 'error');
+        if (state.currentStep === i + 1) el.classList.add('active');
+        if (state.steps[key] === 'done') el.classList.add('done');
+        if (state.steps[key] === 'error') el.classList.add('error');
+      }
+    }
+
+    function updateStepVisibility() {
+      for (let i = 0; i < STEP_IDS.length; i++) {
+        const pane = document.getElementById(STEP_IDS[i]);
+        pane.classList.toggle('active', i + 1 === state.currentStep);
+      }
+      document.getElementById('prevStepBtn').disabled = state.currentStep === 1;
+      document.getElementById('nextStepBtn').disabled = state.currentStep === 7;
+      document.getElementById('gateMessage').textContent = canAccessStep(state.currentStep) ? '' : 'Complete previous required steps first.';
+      if (state.currentStep === 5) renderGainingTable();
+      updateIndicators();
+      saveState();
+    }
+
+    function fillFromState() {
+      Object.keys(DEFAULT_STATE.forms).forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (el.type === 'checkbox') el.checked = Boolean(state.forms[id]);
+        else el.value = state.forms[id] ?? '';
+      });
+      const a1 = document.getElementById('authinfo');
+      const a2 = document.getElementById('authinfoTransfer');
+      if (a1) a1.value = authinfoMemory;
+      if (a2) a2.value = authinfoMemory;
+      document.getElementById('responseView').textContent = JSON.stringify(state.flow.lastResponse || {}, null, 2);
+    }
+
+    function bindInputPersistence() {
+      Object.keys(DEFAULT_STATE.forms).forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const sync = () => {
+          state.forms[id] = el.type === 'checkbox' ? el.checked : el.value;
+          saveState();
+        };
+        el.addEventListener('input', sync);
+        el.addEventListener('change', sync);
+      });
+      ['authinfo', 'authinfoTransfer'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', () => {
+          authinfoMemory = el.value;
+          const other = id === 'authinfo' ? document.getElementById('authinfoTransfer') : document.getElementById('authinfo');
+          if (other && document.activeElement !== other) other.value = authinfoMemory;
+        });
+      });
+    }
+
+    async function runStep1() {
+      const domainName = String(state.forms.domainName || '').trim();
+      const registryId = normalizeRegistry(state.forms.registryId);
+      if (!domainName) {
+        state.steps.step1 = 'error';
+        setResponse({ success: false, code: 'invalid', message: 'Domain name is required.' });
+        return updateStepVisibility();
+      }
+      const launchPhase = String(state.forms.launchPhase || '').trim();
+      const checkBody = { domains: [domainCheckName(domainName, registryId)], registryId };
+      if (launchPhase) checkBody.launchPhase = launchPhase;
+      const result = await api('/api/domain/check', 'POST', checkBody);
+      state.steps.step1 = result.success ? 'done' : 'error';
+      setResponse(result);
+      updateStepVisibility();
+    }
+
+    function applyAuthinfoFromApiData(data) {
+      if (!data || typeof data !== 'object') return false;
+      const raw = data['domain.authinfo'] ?? data['DOMAIN.AUTHINFO'];
+      if (raw == null) return false;
+      const s = String(Array.isArray(raw) ? (raw[0] ?? '') : raw).trim();
+      if (!s) return false;
+      authinfoMemory = s;
+      const a1 = document.getElementById('authinfo');
+      const a2 = document.getElementById('authinfoTransfer');
+      if (a1) a1.value = s;
+      if (a2) a2.value = s;
+      return true;
+    }
+
+    async function runStep2AuthinfoRequest() {
+      if (state.steps.step1 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'Run step 1 first.' });
+      const domainName = String(state.forms.domainName || '').trim();
+      const registryId = normalizeRegistry(state.forms.registryId);
+      const domainId = String(state.forms.authinfoRequestDomainId || '').trim();
+      const body = { domainName, registryId };
+      if (domainId) body.domainId = domainId;
+      const result = await api('/api/domain/authinfo-request', 'POST', body);
+      state.steps.step2 = result.success ? 'done' : 'error';
+      if (result.success && result.data && applyAuthinfoFromApiData(result.data)) {
+        const note = ' Transfer code copied into auth fields for step 3.';
+        result.message = result.message ? String(result.message) + note : note.trim();
+      }
+      setResponse(result);
+      updateStepVisibility();
+    }
+
+    function skipStep2() {
+      if (state.steps.step1 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'Run step 1 first.' });
+      state.steps.step2 = 'done';
+      setResponse({ success: true, code: 'skipped', message: 'Step 2 skipped — paste the auth / EPP code from the losing registrar in step 3.' });
+      updateStepVisibility();
+    }
+
+    async function runStep3() {
+      if (state.steps.step2 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'Complete step 2 (get code or skip) first.' });
+      const domainName = String(state.forms.domainName || '').trim();
+      const registryId = normalizeRegistry(state.forms.registryId);
+      const authinfo = String(authinfoMemory || '').trim();
+      if (!authinfo) {
+        state.steps.step3 = 'error';
+        setResponse({ success: false, code: 'invalid', message: 'Authinfo is required.' });
+        return updateStepVisibility();
+      }
+      const result = await api('/api/domain/inquire-transfer', 'POST', { domainName, registryId, authinfo });
+      state.steps.step3 = result.success ? 'done' : 'error';
+      if (result.success && Array.isArray(result.domainContacts)) {
+        state.flow.domainContacts = result.domainContacts;
+        state.flow.gainingBySlotIndex = {};
+        state.flow.contactInquiries = {};
+      }
+      setResponse(result);
+      updateStepVisibility();
+    }
+
+    async function runStep4() {
+      if (state.steps.step3 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'Run step 3 first.' });
+      const registryId = normalizeRegistry(state.forms.registryId);
+      const slots = state.flow.domainContacts || [];
+      const seen = {};
+      const ids = [];
+      slots.forEach((s) => {
+        if (s.id && !seen[s.id]) { seen[s.id] = true; ids.push(s.id); }
+      });
+      if (ids.length === 0) {
+        state.steps.step4 = 'error';
+        setResponse({ success: false, code: 'invalid', message: 'No contact IDs from step 3.' });
+        return updateStepVisibility();
+      }
+      const out = { success: true, registryId, results: [] };
+      for (const cid of ids) {
+        const q = new URLSearchParams({ registryId, contactId: cid });
+        const one = await fetch('/api/contact/inquire?' + q.toString()).then((r) => r.json());
+        out.results.push({ contactId: cid, inquire: one });
+        if (one.success) state.flow.contactInquiries[cid] = one;
+      }
+      const failed = out.results.filter((r) => !r.inquire.success);
+      state.steps.step4 = failed.length === 0 ? 'done' : 'error';
+      setResponse(out);
+      updateStepVisibility();
+    }
+
+    function validateStep4Complete() {
+      const slots = state.flow.domainContacts || [];
+      for (const slot of slots) {
+        const g = (state.flow.gainingBySlotIndex && state.flow.gainingBySlotIndex[slotKey(slot.index)]) || '';
+        if (g.length < 3 || g.length > 16) return false;
+      }
+      return slots.length > 0;
+    }
+
+    async function runContactCreateForSlot() {
+      const registryId = normalizeRegistry(state.forms.registryId);
+      const sel = document.getElementById('createTargetSlot');
+      const slotIndex = parseInt(String(sel && sel.value || ''), 10);
+      const slot = (state.flow.domainContacts || []).find((s) => s.index === slotIndex);
+      if (!slot) return setResponse({ success: false, code: 'invalid', message: 'Select a valid slot.' });
+      const body = {
+        registryId,
+        contact: {
+          name: String(document.getElementById('gContactName').value || '').trim(),
+          email: String(document.getElementById('gContactEmail').value || '').trim(),
+          address: String(document.getElementById('gContactAddress').value || '').trim(),
+          city: String(document.getElementById('gContactCity').value || '').trim(),
+          state: String(document.getElementById('gContactState').value || '').trim(),
+          postalcode: String(document.getElementById('gContactPostal').value || '').trim(),
+          countrycode: String(document.getElementById('gContactCountry').value || '').trim(),
+          phone: String(document.getElementById('gContactPhone').value || '').trim(),
+          organization: String(document.getElementById('gContactOrg').value || '').trim()
+        }
+      };
+      const res = await api('/api/contact/create', 'POST', body);
+      if (res.success && res.contactId) {
+        if (!state.flow.gainingBySlotIndex) state.flow.gainingBySlotIndex = {};
+        state.flow.gainingBySlotIndex[slotKey(slot.index)] = res.contactId;
+        saveState();
+        renderGainingTable();
+      }
+      setResponse(res);
+    }
+
+    function markStep5Done() {
+      if (!validateStep4Complete()) {
+        state.steps.step5 = 'error';
+        setResponse({ success: false, code: 'invalid', message: 'Each slot needs a gaining contact ID (3–16 characters).' });
+        return updateStepVisibility();
+      }
+      state.steps.step5 = 'done';
+      setResponse({ success: true, code: 'gaining_ready', message: 'All slots have gaining contact IDs.', gainingBySlotIndex: state.flow.gainingBySlotIndex });
+      updateStepVisibility();
+    }
+
+    async function runStep6() {
+      if (state.steps.step5 !== 'done') return setResponse({ success: false, code: 'invalid', message: 'Complete step 5 first (mark gaining IDs complete).' });
+      const authinfo = String(authinfoMemory || '').trim();
+      if (!authinfo) {
+        setResponse({ success: false, code: 'invalid', message: 'Authinfo required.' });
+        return updateStepVisibility();
+      }
+      const domainName = String(state.forms.domainName || '').trim();
+      const registryId = normalizeRegistry(state.forms.registryId);
+      const slots = state.flow.domainContacts || [];
+      const contacts = slots.map((s) => ({
+        type: s.type && s.type !== 'unknown' ? s.type : 'registrant',
+        id: (state.flow.gainingBySlotIndex && state.flow.gainingBySlotIndex[slotKey(s.index)]) || ''
+      })).filter((c) => c.id.length >= 3);
+      const payload = { domainName, registryId, authinfo, contacts };
+      const u = String(document.getElementById('transferUpdate').value || '').trim();
+      if (u) payload.update = u;
+      const pv = parseInt(String(document.getElementById('transferPeriodValue').value || '0'), 10);
+      const pu = String(document.getElementById('transferPeriodUnit').value || 'y');
+      if (pv > 0) { payload.periodValue = pv; payload.periodUnit = pu; }
+      ['tns1', 'tns2', 'tns3', 'tns4'].forEach((tid, i) => {
+        const v = String(document.getElementById(tid).value || '').trim();
+        if (v) payload['ns' + (i + 1)] = v;
+      });
+      const result = await api('/api/domain/transfer', 'POST', payload);
+      state.steps.step6 = result.success ? 'done' : 'error';
+      setResponse(result);
+      updateStepVisibility();
+    }
+
+    function transferHintFromPoll(data) {
+      const flat = JSON.stringify(data || {}).toLowerCase();
+      if (flat.includes('transfer')) return 'Response mentions transfer — compare msg.type and registry fields to your domain.';
+      return '';
+    }
+
+    async function pollOnce() {
+      const body = {};
+      const mid = String(document.getElementById('pollMsgId').value || '').trim();
+      if (mid) body.msgId = mid;
+      if (document.getElementById('pollAutoAck').checked) body.msgAutoack = true;
+      const res = await api('/api/poll/request', 'POST', body);
+      const hint = document.getElementById('pollHint');
+      if (hint) hint.textContent = transferHintFromPoll(res.data || res);
+      setResponse(res);
+    }
+
+    async function pollDrain() {
+      const max = 25;
+      const log = { drained: [], stopped: null };
+      for (let n = 0; n < max; n++) {
+        const body = {};
+        if (document.getElementById('pollAutoAck').checked) body.msgAutoack = true;
+        const res = await api('/api/poll/request', 'POST', body);
+        log.drained.push(res);
+        const data = res.data || {};
+        const msgId = data['msg.id'] != null ? String(data['msg.id']) : '';
+        const success = res.success === true;
+        if (!success) {
+          log.stopped = 'poll.request not successful';
+          break;
+        }
+        if (!msgId) {
+          log.stopped = 'no msg.id (queue empty or informational response)';
+          break;
+        }
+        if (!document.getElementById('pollAutoAck').checked) {
+          const ack = await api('/api/poll/acknowledge', 'POST', { msgId });
+          log.drained.push({ ack });
+          if (!ack.success) {
+            log.stopped = 'poll.acknowledge failed';
+            break;
+          }
+        }
+      }
+      const hint = document.getElementById('pollHint');
+      if (hint) hint.textContent = transferHintFromPoll(log);
+      setResponse(log);
+    }
+
+    function goNext() {
+      const n = Math.min(7, state.currentStep + 1);
+      if (state.currentStep === 5 && n === 6) {
+        markStep5Done();
+        if (state.steps.step5 !== 'done') return;
+      }
+      if (canAccessStep(n)) state.currentStep = n;
+      updateStepVisibility();
+    }
+
+    function goBack() {
+      state.currentStep = Math.max(1, state.currentStep - 1);
+      updateStepVisibility();
+    }
+
+    function resetWizard() {
+      state = structuredClone(DEFAULT_STATE);
+      authinfoMemory = '';
+      saveState();
+      fillFromState();
+      updateStepVisibility();
+      setResponse({});
+    }
+
+    document.getElementById('runStep1Btn').addEventListener('click', runStep1);
+    document.getElementById('runStep2AuthinfoBtn').addEventListener('click', runStep2AuthinfoRequest);
+    document.getElementById('skipStep2Btn').addEventListener('click', skipStep2);
+    document.getElementById('runStep3Btn').addEventListener('click', runStep3);
+    document.getElementById('runStep4Btn').addEventListener('click', runStep4);
+    document.getElementById('runStep6Btn').addEventListener('click', runStep6);
+    document.getElementById('runContactCreateBtn').addEventListener('click', runContactCreateForSlot);
+    document.getElementById('prefillFromSourceBtn').addEventListener('click', () => {
+      const sel = document.getElementById('createTargetSlot');
+      const idx = parseInt(String(sel && sel.value || ''), 10);
+      prefillCreateFromSource(idx);
+    });
+    document.getElementById('pollOnceBtn').addEventListener('click', pollOnce);
+    document.getElementById('pollDrainBtn').addEventListener('click', pollDrain);
+    document.getElementById('prevStepBtn').addEventListener('click', goBack);
+    document.getElementById('nextStepBtn').addEventListener('click', goNext);
+    document.getElementById('resetWizardBtn').addEventListener('click', resetWizard);
+
+    bindInputPersistence();
+    fillFromState();
+    updateStepVisibility();
+  </script>
+</body>
+</html>

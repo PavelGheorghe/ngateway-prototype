@@ -1,0 +1,47 @@
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: puntu
+      MYSQL_USER: puntu
+      MYSQL_PASSWORD: puntu
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "33060:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: puntu-symfony-app
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:80"
+    volumes:
+      - ./:/var/www/html
+    environment:
+      - APP_ENV=dev
+      - DATABASE_URL=mysql://puntu:puntu@db:3306/puntu?serverVersion=8.0&charset=utf8mb4
+      - BRIZY_PARENT_ORIGINS=${BRIZY_PARENT_ORIGINS:-}
+      - CORE_MEMBER_ID=${CORE_MEMBER_ID:-CORE-703}
+      - CORE_ATP=728917
+      - CORE_CLIENT_NAME=${CORE_CLIENT_NAME:-puntu-api}
+      - CORE_PRODUCTION=${CORE_PRODUCTION:-false}
+      - CORE_DEBUG_REQUEST=${CORE_DEBUG_REQUEST:-0}
+      - CORE_SKIP_PROVIDER_CHAIN=${CORE_SKIP_PROVIDER_CHAIN:-0}
+      - CORE_PROVIDER_CHAIN_SPEC=${CORE_PROVIDER_CHAIN_SPEC:-}
+      - CORE_PROVIDER_CHAIN_TYPE=${CORE_PROVIDER_CHAIN_TYPE:-billing}
+      - CORE_DEFAULT_NS1=${CORE_DEFAULT_NS1:-}
+      - CORE_DEFAULT_NS2=${CORE_DEFAULT_NS2:-}
+      - CORE_VERIFY_SSL=${CORE_VERIFY_SSL:-false}
+      - PUNTU_EMBED_SHARED_SECRET=${PUNTU_EMBED_SHARED_SECRET:-}
+
+volumes:
+  mysql_data: {}
