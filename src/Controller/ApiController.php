@@ -388,10 +388,136 @@ final class ApiController extends AbstractController
 
         $list = [];
         foreach ($domains as $d) {
-            $list[] = ['domainFqdn' => $d->getDomainFqdn()];
+            $rc = $d->getRegistryContact();
+            $list[] = [
+                'id' => $d->getId(),
+                'domainFqdn' => $d->getDomainFqdn(),
+                'registryId' => $rc !== null ? $rc->getRegistryId() : '.com',
+            ];
         }
 
         return $this->apiJson(['success' => true, 'domains' => $list]);
+    }
+
+    /**
+     * Owner-scoped domain.inquire for the manage-domains embed (defense in depth vs generic /api/domain/inquire).
+     */
+    #[Route('/api/domains/{id}/details', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function ownedDomainDetails(int $id): JsonResponse
+    {
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return $this->apiJson(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $domain = $this->findOwnedDomain($user, $id);
+        if ($domain === null) {
+            return $this->apiJson(['success' => false, 'message' => 'Not found'], 404);
+        }
+
+        $registryId = $domain->getRegistryContact()?->getRegistryId() ?? '.com';
+
+        return $this->apiJson($this->domainService->inquire($domain->getDomainFqdn(), $registryId));
+    }
+
+    #[Route('/api/domains/{id}/renew', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function ownedDomainRenew(Request $request, int $id): JsonResponse
+    {
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return $this->apiJson(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $domain = $this->findOwnedDomain($user, $id);
+        if ($domain === null) {
+            return $this->apiJson(['success' => false, 'message' => 'Not found'], 404);
+        }
+
+        $body = $this->jsonBody($request);
+        $periodValue = max(1, min(99, (int) ($body['periodValue'] ?? 1)));
+        $periodUnit = strtolower((string) ($body['periodUnit'] ?? 'y')) === 'm' ? 'm' : 'y';
+        $registryId = $domain->getRegistryContact()?->getRegistryId() ?? '.com';
+
+        $response = $this->domainService->renew([
+            'domainName' => $domain->getDomainFqdn(),
+            'registryId' => $registryId,
+            'periodValue' => $periodValue,
+            'periodUnit' => $periodUnit,
+        ]);
+        $status = ($response['success'] ?? false) ? 200 : 400;
+
+        return $this->apiJson($response, $status);
+    }
+
+    #[Route('/api/domains/{id}/route53/records', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function ownedDomainRoute53RecordsGet(int $id): JsonResponse
+    {
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return $this->apiJson(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $domain = $this->findOwnedDomain($user, $id);
+        if ($domain === null) {
+            return $this->apiJson(['success' => false, 'message' => 'Not found'], 404);
+        }
+
+        $resolved = $this->route53HostedZoneService->resolveHostedZoneIdByFqdn($domain->getDomainFqdn());
+        if (!($resolved['success'] ?? false)) {
+            return $this->apiJson([
+                'success' => false,
+                'message' => $resolved['message'] ?? 'No Route53 hosted zone for this domain.',
+                'code' => $resolved['code'] ?? 'not_found',
+            ], 404);
+        }
+
+        $hostedZoneId = (string) ($resolved['hostedZoneId'] ?? '');
+        $list = $this->route53RecordSetService->listBrizyShapedRecords($hostedZoneId);
+        if (!($list['success'] ?? false)) {
+            return $this->apiJson($list, 400);
+        }
+
+        return $this->apiJson([
+            'success' => true,
+            'hostedZoneId' => $hostedZoneId,
+            'dnsName' => $resolved['dnsName'] ?? null,
+            'records' => $list['records'] ?? [],
+        ]);
+    }
+
+    #[Route('/api/domains/{id}/route53/records', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function ownedDomainRoute53RecordsPost(Request $request, int $id): JsonResponse
+    {
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return $this->apiJson(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $domain = $this->findOwnedDomain($user, $id);
+        if ($domain === null) {
+            return $this->apiJson(['success' => false, 'message' => 'Not found'], 404);
+        }
+
+        $body = $this->jsonBody($request);
+        $records = $body['dnsRecords'] ?? null;
+        if (!is_array($records) || $records === []) {
+            return $this->apiJson(['success' => false, 'message' => 'dnsRecords must be a non-empty array'], 400);
+        }
+
+        $resolved = $this->route53HostedZoneService->resolveHostedZoneIdByFqdn($domain->getDomainFqdn());
+        if (!($resolved['success'] ?? false)) {
+            return $this->apiJson([
+                'success' => false,
+                'message' => $resolved['message'] ?? 'No Route53 hosted zone for this domain.',
+                'code' => $resolved['code'] ?? 'not_found',
+            ], 404);
+        }
+
+        $hostedZoneId = (string) ($resolved['hostedZoneId'] ?? '');
+        $upsert = $this->route53RecordSetService->upsertBrizyDnsRecords($hostedZoneId, $records);
+        $status = ($upsert['success'] ?? false) ? 200 : 400;
+
+        return $this->apiJson($upsert, $status);
     }
 
     #[Route('/api/{path}', requirements: ['path' => '.+'], methods: ['OPTIONS'])]
@@ -412,6 +538,20 @@ final class ApiController extends AbstractController
         }
 
         return $user->getAmemberUserId();
+    }
+
+    private function findOwnedDomain(User $user, int $id): ?Domain
+    {
+        $domain = $this->entityManager->getRepository(Domain::class)->find($id);
+        if ($domain === null) {
+            return null;
+        }
+
+        if ($domain->getUser()?->getId() !== $user->getId()) {
+            return null;
+        }
+
+        return $domain;
     }
 
     /**

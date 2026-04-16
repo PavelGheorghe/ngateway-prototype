@@ -102,6 +102,15 @@ final class HomeController extends AbstractController
     }
 
     /**
+     * Brizy Cloud iframe: pick a Puntu-owned domain and apply Brizy DNS rows to Route53, then link the project.
+     */
+    #[Route('/embed/select-owned-domain', name: 'app_embed_select_owned_domain', methods: ['GET'])]
+    public function embedSelectOwnedDomain(Request $request): Response
+    {
+        return $this->embedFrameResponseFromJwt($request, 'embed/select_owned_domain.html.twig', []);
+    }
+
+    /**
      * @param array<string, mixed> $twigVars
      */
     private function embedFrameResponseFromJwt(Request $request, string $template, array $twigVars): Response

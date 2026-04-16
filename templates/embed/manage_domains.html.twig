@@ -29,7 +29,7 @@
     }
     .embed-manage-domains-modal {
       width: 100%;
-      max-width: 640px;
+      max-width: 880px;
       max-height: min(92vh, calc(100dvh - 2rem));
       overflow: auto;
       -webkit-overflow-scrolling: touch;
@@ -50,10 +50,32 @@
       margin-bottom: 1rem;
       flex-shrink: 0;
     }
+    .embed-modal-header-main {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+    .embed-nav-back {
+      flex-shrink: 0;
+      width: 2.25rem;
+      height: 2.25rem;
+      padding: 0;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+      color: #0f172a;
+      font-size: 1.1rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .embed-nav-back:hover { background: #f1f5f9; }
     .embed-modal-header h1 {
       margin: 0;
-      font-size: 1.35rem;
+      font-size: 1.2rem;
       font-weight: 600;
+      line-height: 1.25;
+      word-break: break-word;
     }
     .embed-modal-close {
       flex-shrink: 0;
@@ -74,32 +96,314 @@
     }
     .muted { color: #64748b; font-size: 0.9rem; line-height: 1.45; }
     .err { color: #b91c1c; font-size: 0.9rem; }
-    ul.domain-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
+    .domain-table-wrap {
       border: 1px solid #e2e8f0;
       border-radius: 8px;
       overflow: hidden;
     }
-    ul.domain-list li {
-      padding: 0.65rem 0.85rem;
-      border-bottom: 1px solid #e2e8f0;
+    table.domain-table {
+      width: 100%;
+      border-collapse: collapse;
       font-size: 0.95rem;
-      word-break: break-all;
     }
-    ul.domain-list li:last-child { border-bottom: 0; }
+    table.domain-table th,
+    table.domain-table td {
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+      vertical-align: middle;
+    }
+    table.domain-table th {
+      background: #f8fafc;
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      color: #64748b;
+    }
+    table.domain-table tr:last-child td { border-bottom: 0; }
+    .domain-name { word-break: break-all; }
+    table.domain-table th.th-actions,
+    table.domain-table td.td-actions {
+      text-align: right;
+      white-space: nowrap;
+      width: auto;
+      vertical-align: middle;
+    }
+    .actions {
+      display: inline-flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.35rem;
+    }
+    .btn-embed {
+      flex-shrink: 0;
+      font: inherit;
+      font-size: 0.8rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #0f172a;
+      cursor: pointer;
+    }
+    .btn-embed:hover { background: #f1f5f9; }
+    .btn-embed.primary {
+      background: #0f172a;
+      color: #fff;
+      border-color: #0f172a;
+    }
+    .btn-embed.primary:hover { background: #1e293b; }
+    #embedContextView {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+    #embedContextView[hidden] {
+      display: none !important;
+    }
+    #embedContextBody {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+    }
+    .embed-context-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #e2e8f0;
+      flex-shrink: 0;
+    }
+    .kv { margin: 0; font-size: 0.85rem; }
+    .kv dt { color: #64748b; margin-top: 0.5rem; }
+    .kv dd { margin: 0.15rem 0 0; word-break: break-word; }
+    .details-root { font-size: 0.9rem; }
+    .details-fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.85rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    @media (max-width: 520px) {
+      .details-fields { grid-template-columns: 1fr; }
+    }
+    .details-field .kv-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748b;
+      margin-bottom: 0.2rem;
+    }
+    .details-field .kv-value {
+      display: block;
+      word-break: break-word;
+      color: #0f172a;
+      line-height: 1.35;
+    }
+    .details-ns-section { margin-top: 0.25rem; margin-bottom: 1rem; }
+    .details-ns-heading {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748b;
+      margin: 0 0 0.5rem;
+    }
+    .details-ns-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5rem 1rem;
+      font-size: 0.85rem;
+    }
+    @media (max-width: 520px) {
+      .details-ns-grid { grid-template-columns: 1fr; }
+    }
+    .details-ns-grid .ns-cell .kv-label { margin-bottom: 0.15rem; }
+    details.registry-raw { margin-top: 0.5rem; }
+    details.registry-raw > summary {
+      cursor: pointer;
+      color: #64748b;
+      font-size: 0.85rem;
+      user-select: none;
+    }
+    pre.raw-json {
+      margin: 0.75rem 0 0;
+      padding: 0.65rem;
+      background: #f1f5f9;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      overflow: auto;
+      max-height: 220px;
+    }
+    .form-row { margin-bottom: 0.65rem; }
+    .form-row label { display: block; font-size: 0.8rem; color: #64748b; margin-bottom: 0.2rem; }
+    .form-row input, .form-row select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.4rem 0.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font: inherit;
+      font-size: 0.9rem;
+    }
+    .renew-expiry {
+      margin-bottom: 0.75rem;
+      font-size: 0.95rem;
+      padding: 0.5rem 0.65rem;
+      background: #f8fafc;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+    .renew-expiry strong { color: #0f172a; font-weight: 600; }
+    .dns-rows-wrap {
+      margin-top: 0.5rem;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .dns-head {
+      display: grid;
+      grid-template-columns: 4.25rem minmax(0, 1fr) minmax(0, 1fr) 4.75rem 7.75rem;
+      gap: 0.65rem;
+      align-items: center;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748b;
+      padding: 0.35rem 0.35rem 0.45rem;
+      border-bottom: 2px solid #e2e8f0;
+      min-width: 36rem;
+    }
+    .dns-head span:last-child { text-align: right; padding-right: 0.15rem; }
+    .dns-rows { margin-top: 0; min-width: 36rem; }
+    .dns-row {
+      display: grid;
+      grid-template-columns: 4.25rem minmax(0, 1fr) minmax(0, 1fr) 4.75rem 7.75rem;
+      gap: 0.65rem;
+      align-items: center;
+      margin-bottom: 0;
+      padding: 0.45rem 0.35rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .dns-row--read .dns-cell {
+      font-size: 0.82rem;
+      word-break: break-word;
+      line-height: 1.35;
+      color: #0f172a;
+    }
+    .dns-row--editing {
+      align-items: stretch;
+      padding: 0.55rem 0.35rem;
+      margin: 0.2rem 0;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-bottom: 1px solid #e2e8f0;
+      border-radius: 8px;
+      box-shadow: inset 3px 0 0 #2563eb;
+    }
+    .dns-row--editing .dns-edit-cell {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+    .dns-row--editing .dns-field,
+    .dns-row--editing select.dns-field {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      margin: 0;
+      font: inherit;
+      font-size: 0.8125rem;
+      line-height: 1.35;
+      padding: 0.5rem 0.55rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #fff;
+      color: #0f172a;
+      transition: border-color 0.12s ease, box-shadow 0.12s ease;
+    }
+    .dns-row--editing select.dns-field {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M3 4.5L6 8l3-3.5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.45rem center;
+      padding-right: 1.75rem;
+    }
+    .dns-row--editing .dns-field::placeholder {
+      color: #94a3b8;
+    }
+    .dns-row--editing .dns-field:hover,
+    .dns-row--editing select.dns-field:hover {
+      border-color: #94a3b8;
+    }
+    .dns-row--editing .dns-field:focus,
+    .dns-row--editing select.dns-field:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+    }
+    .dns-row--editing input[type="number"].dns-field {
+      -moz-appearance: textfield;
+    }
+    .dns-row--editing input[type="number"].dns-field::-webkit-outer-spin-button,
+    .dns-row--editing input[type="number"].dns-field::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .dns-row-actions {
+      display: flex;
+      gap: 0.35rem;
+      justify-content: flex-end;
+      flex-wrap: nowrap;
+      align-items: center;
+    }
+    .dns-row--editing .dns-row-actions {
+      align-self: center;
+    }
+    .dns-row--editing .btn-embed {
+      font-size: 0.78rem;
+      padding: 0.4rem 0.6rem;
+    }
   </style>
 </head>
 <body class="embed-manage-domains-root">
   <div class="embed-manage-domains-backdrop">
     <div class="embed-manage-domains-modal" role="dialog" aria-modal="true" aria-labelledby="manageDomainsTitle">
       <header class="embed-modal-header">
-        <h1 id="manageDomainsTitle">Manage domains</h1>
+        <div class="embed-modal-header-main">
+          <button type="button" class="embed-nav-back" id="embedNavBack" hidden aria-label="Back to domain list">←</button>
+          <h1 id="manageDomainsTitle">Manage domains</h1>
+        </div>
         <button type="button" class="embed-modal-close" id="manageDomainsDismiss" aria-label="Close">×</button>
       </header>
-      <p class="muted" id="manageDomainsStatus">Loading…</p>
-      <ul class="domain-list" id="manageDomainsList" hidden></ul>
+
+      <div id="embedListView">
+        <p class="muted" id="manageDomainsStatus">Loading…</p>
+        <div id="manageDomainsTableWrap" class="domain-table-wrap" hidden>
+          <table class="domain-table">
+            <thead>
+              <tr>
+                <th scope="col">Domain</th>
+                <th scope="col" class="th-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="manageDomainsTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="embedContextView" hidden>
+        <div id="embedContextBody"></div>
+        <div class="embed-context-actions" id="embedContextActions"></div>
+      </div>
     </div>
   </div>
 
@@ -110,17 +414,615 @@
     window.parent.postMessage(msg, '*');
   }
 
+  var statusEl = document.getElementById('manageDomainsStatus');
+  var tableWrap = document.getElementById('manageDomainsTableWrap');
+  var tbody = document.getElementById('manageDomainsTbody');
+  var embedListView = document.getElementById('embedListView');
+  var embedContextView = document.getElementById('embedContextView');
+  var embedContextBody = document.getElementById('embedContextBody');
+  var embedContextActions = document.getElementById('embedContextActions');
+  var embedNavBack = document.getElementById('embedNavBack');
+  var manageDomainsTitle = document.getElementById('manageDomainsTitle');
+
+  function isContextOpen() {
+    return !embedContextView.hidden;
+  }
+
+  function showListView() {
+    embedContextView.hidden = true;
+    embedContextBody.innerHTML = '';
+    embedContextActions.innerHTML = '';
+    embedListView.hidden = false;
+    embedNavBack.hidden = true;
+    manageDomainsTitle.textContent = 'Manage domains';
+  }
+
+  function openContextView(title, bodyHtml) {
+    manageDomainsTitle.textContent = title;
+    embedNavBack.hidden = false;
+    embedContextBody.innerHTML = bodyHtml;
+    embedContextActions.innerHTML = '';
+    embedListView.hidden = true;
+    embedContextView.hidden = false;
+  }
+
+  function resetContextActions() {
+    embedContextActions.innerHTML = '';
+    var back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'btn-embed';
+    back.textContent = 'Back to domains';
+    back.addEventListener('click', showListView);
+    embedContextActions.appendChild(back);
+  }
+
+  function prependContextAction(btn) {
+    embedContextActions.insertBefore(btn, embedContextActions.firstChild);
+  }
+
   document.getElementById('manageDomainsDismiss').addEventListener('click', function () {
     postToParent({ type: 'PUNTU_MANAGE_DOMAINS_CLOSE' });
   });
+  embedNavBack.addEventListener('click', showListView);
+
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
+      if (isContextOpen()) {
+        showListView();
+        return;
+      }
       postToParent({ type: 'PUNTU_MANAGE_DOMAINS_CLOSE' });
     }
   });
 
-  var statusEl = document.getElementById('manageDomainsStatus');
-  var listEl = document.getElementById('manageDomainsList');
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  }
+
+  function scalar(v) {
+    if (v == null) return '';
+    return Array.isArray(v) ? String(v[0] ?? '') : String(v);
+  }
+
+  function dataScalar(d, keys) {
+    if (!d || typeof d !== 'object') return '';
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (Object.prototype.hasOwnProperty.call(d, k) && d[k] != null && d[k] !== '') {
+        return scalar(d[k]);
+      }
+    }
+    return '';
+  }
+
+  function nestedGet(obj, path) {
+    if (!obj || typeof obj !== 'object' || !path) return null;
+    var parts = String(path).split('.');
+    var cur = obj;
+    for (var pi = 0; pi < parts.length; pi++) {
+      if (cur == null || typeof cur !== 'object') return null;
+      var key = parts[pi];
+      if (!Object.prototype.hasOwnProperty.call(cur, key)) return null;
+      cur = cur[key];
+    }
+    return cur;
+  }
+
+  /** Tries dotted top-level keys, then nested path segments (e.g. domain.expiration.date). */
+  function fieldFromRaw(raw, pathList) {
+    if (!raw || typeof raw !== 'object') return '';
+    for (var i = 0; i < pathList.length; i++) {
+      var p = pathList[i];
+      if (Object.prototype.hasOwnProperty.call(raw, p) && raw[p] != null && String(raw[p]).trim() !== '') {
+        return String(raw[p]).trim();
+      }
+      var g = nestedGet(raw, p);
+      if (g != null && String(g).trim() !== '') return String(g).trim();
+    }
+    return '';
+  }
+
+  function formatExpiryDisplay(s) {
+    if (!s || s === '—') return s;
+    var d = new Date(s);
+    if (isNaN(d.getTime())) return s;
+    try {
+      return d.toISOString().slice(0, 10);
+    } catch (e) {
+      return s;
+    }
+  }
+
+  var DOMAIN_EXPIRY_FIELD_PATHS = [
+    'expiration.date',
+    'domain.expiration.date',
+    'domain.expirdate',
+    'DOMAIN.EXPIRATION.DATE',
+    'DOMAIN.EXPIRDATE'
+  ];
+
+  function registryRawFromDetailsBody(d) {
+    if (!d || typeof d !== 'object' || !d.data || typeof d.data !== 'object') {
+      return {};
+    }
+    return d.data;
+  }
+
+  function getExpiryDisplayFromDetailsBody(d) {
+    var raw = registryRawFromDetailsBody(d);
+    if (!raw || Object.keys(raw).length === 0) {
+      return '—';
+    }
+    var expiryRaw = fieldFromRaw(raw, DOMAIN_EXPIRY_FIELD_PATHS);
+    return expiryRaw ? formatExpiryDisplay(expiryRaw) : '—';
+  }
+
+  function fetchDetailsJson(domainId) {
+    return fetch('/api/domains/' + domainId + '/details', {
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' }
+    }).then(function (r) {
+      return r.json();
+    });
+  }
+
+  function updateRenewExpiryElementFromBody(body) {
+    var el = document.getElementById('renewCurrentExpiry');
+    if (!el) {
+      return;
+    }
+    if (body && body.success) {
+      el.textContent = getExpiryDisplayFromDetailsBody(body);
+    }
+  }
+
+  function showDetailsModal(domainId, fqdn) {
+    openContextView('Details — ' + fqdn, '<p class="muted" id="detailsLoading">Loading…</p>');
+    resetContextActions();
+    fetch('/api/domains/' + domainId + '/details', { credentials: 'include', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); })
+      .then(function (res) {
+        var d = res.data;
+        var el = document.getElementById('detailsLoading');
+        if (!el) return;
+        if (!d || !d.success) {
+          el.outerHTML = '<p class="err">' + escapeHtml(d && d.message ? d.message : 'Could not load domain details.') + '</p>';
+          return;
+        }
+        var raw = d.data && typeof d.data === 'object' ? d.data : {};
+        var domainName = fieldFromRaw(raw, ['domain.name', 'DOMAIN.NAME']) || fqdn;
+        var domainId = fieldFromRaw(raw, ['domain.id', 'DOMAIN.ID']);
+        var statusVal = fieldFromRaw(raw, ['domain.status', 'DOMAIN.STATUS']);
+        var expiryRaw = fieldFromRaw(raw, DOMAIN_EXPIRY_FIELD_PATHS);
+        var expiryDisp = expiryRaw ? formatExpiryDisplay(expiryRaw) : '—';
+
+        var parts = [];
+        parts.push('<div class="details-root">');
+        parts.push('<div class="details-fields">');
+        parts.push(
+          '<div class="details-field"><span class="kv-label">Registry response</span>' +
+          '<span class="kv-value">success · code ' + escapeHtml(String(d.code || '—')) + '</span></div>'
+        );
+        parts.push(
+          '<div class="details-field"><span class="kv-label">Domain</span>' +
+          '<span class="kv-value">' + escapeHtml(domainName) + '</span></div>'
+        );
+        parts.push(
+          '<div class="details-field"><span class="kv-label">Domain ID</span>' +
+          '<span class="kv-value">' + escapeHtml(domainId || '—') + '</span></div>'
+        );
+        parts.push(
+          '<div class="details-field"><span class="kv-label">Status</span>' +
+          '<span class="kv-value">' + escapeHtml(statusVal || '—') + '</span></div>'
+        );
+        parts.push(
+          '<div class="details-field"><span class="kv-label">Expiry</span>' +
+          '<span class="kv-value">' + escapeHtml(expiryDisp) + '</span></div>'
+        );
+        parts.push('</div>');
+
+        var nsCells = [];
+        for (var n = 1; n <= 4; n++) {
+          var ns = fieldFromRaw(raw, ['ns.' + n + '.name', 'NS.' + n + '.NAME']);
+          if (ns) {
+            nsCells.push(
+              '<div class="ns-cell"><span class="kv-label">NS' + n + '</span>' +
+              '<span class="kv-value">' + escapeHtml(ns) + '</span></div>'
+            );
+          }
+        }
+        if (nsCells.length) {
+          parts.push('<div class="details-ns-section">');
+          parts.push('<p class="details-ns-heading">Nameservers</p>');
+          parts.push('<div class="details-ns-grid">' + nsCells.join('') + '</div>');
+          parts.push('</div>');
+        }
+
+        parts.push('<details class="registry-raw">');
+        parts.push('<summary>All registry fields</summary>');
+        parts.push('<pre class="raw-json">' + escapeHtml(JSON.stringify(raw, null, 2)) + '</pre>');
+        parts.push('</details>');
+        parts.push('</div>');
+        el.outerHTML = parts.join('');
+      })
+      .catch(function () {
+        var el = document.getElementById('detailsLoading');
+        if (el) el.outerHTML = '<p class="err">Request failed.</p>';
+      });
+  }
+
+  function showRenewModal(domainId, fqdn) {
+    openContextView('Renew — ' + fqdn, '<p class="muted" id="renewBodyLoading">Loading expiration…</p>');
+    resetContextActions();
+    fetchDetailsJson(domainId)
+      .then(function (body) {
+        var expiryLine = '—';
+        if (body && body.success) {
+          expiryLine = getExpiryDisplayFromDetailsBody(body);
+        }
+        var inner =
+          '<p class="renew-expiry muted" id="renewExpiryRow">Current expiration: <strong id="renewCurrentExpiry">' +
+          escapeHtml(expiryLine) +
+          '</strong></p>' +
+          '<p class="muted">Renew <strong>' + escapeHtml(fqdn) + '</strong> via registry (<code>domain.renew</code>).</p>' +
+          '<div class="form-row"><label for="renewPeriod">Period value</label>' +
+          '<input type="number" id="renewPeriod" min="1" max="99" value="1"></div>' +
+          '<div class="form-row"><label for="renewUnit">Unit</label>' +
+          '<select id="renewUnit"><option value="y">Year(s)</option><option value="m">Month(s)</option></select></div>' +
+          '<p class="err" id="renewErr" hidden></p><p class="muted" id="renewOk" hidden></p>';
+        embedContextBody.innerHTML = inner;
+        mountRenewSubmitHandler(domainId);
+      })
+      .catch(function () {
+        var inner =
+          '<p class="renew-expiry muted" id="renewExpiryRow">Current expiration: <strong id="renewCurrentExpiry">—</strong></p>' +
+          '<p class="err">Could not load expiration. You can still submit renewal.</p>' +
+          '<p class="muted">Renew <strong>' + escapeHtml(fqdn) + '</strong> via registry (<code>domain.renew</code>).</p>' +
+          '<div class="form-row"><label for="renewPeriod">Period value</label>' +
+          '<input type="number" id="renewPeriod" min="1" max="99" value="1"></div>' +
+          '<div class="form-row"><label for="renewUnit">Unit</label>' +
+          '<select id="renewUnit"><option value="y">Year(s)</option><option value="m">Month(s)</option></select></div>' +
+          '<p class="err" id="renewErr" hidden></p><p class="muted" id="renewOk" hidden></p>';
+        embedContextBody.innerHTML = inner;
+        mountRenewSubmitHandler(domainId);
+      });
+  }
+
+  function mountRenewSubmitHandler(domainId) {
+    resetContextActions();
+    var err = document.getElementById('renewErr');
+    var ok = document.getElementById('renewOk');
+    var submitBtn = document.createElement('button');
+    submitBtn.type = 'button';
+    submitBtn.className = 'btn-embed primary';
+    submitBtn.textContent = 'Submit renewal';
+    submitBtn.addEventListener('click', function () {
+      err.hidden = true;
+      ok.hidden = true;
+      var pv = parseInt(document.getElementById('renewPeriod').value, 10) || 1;
+      var unit = document.getElementById('renewUnit').value;
+      submitBtn.disabled = true;
+      fetch('/api/domains/' + domainId + '/renew', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ periodValue: pv, periodUnit: unit })
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); })
+        .then(function (res) {
+          submitBtn.disabled = false;
+          if (res.data && res.data.success) {
+            fetchDetailsJson(domainId)
+              .then(function (body) {
+                updateRenewExpiryElementFromBody(body);
+                var base = (res.data && res.data.message) ? res.data.message : 'Renewal submitted.';
+                var expEl = document.getElementById('renewCurrentExpiry');
+                var suffix = expEl && expEl.textContent && expEl.textContent !== '—'
+                  ? ' Current expiration: ' + expEl.textContent + '.'
+                  : '';
+                ok.textContent = base + suffix;
+                ok.hidden = false;
+              })
+              .catch(function () {
+                ok.textContent = (res.data && res.data.message) ? res.data.message : 'Renewal submitted.';
+                ok.hidden = false;
+              });
+          } else {
+            err.textContent = (res.data && res.data.message) ? res.data.message : 'Renewal failed.';
+            err.hidden = false;
+          }
+        })
+        .catch(function () {
+          submitBtn.disabled = false;
+          err.textContent = 'Request failed.';
+          err.hidden = false;
+        });
+    });
+    prependContextAction(submitBtn);
+  }
+
+  function normalizeDnsType(t) {
+    t = (t || 'A').toUpperCase();
+    if (t !== 'A' && t !== 'AAAA' && t !== 'CNAME') {
+      return 'A';
+    }
+    return t;
+  }
+
+  function dnsRowReadHtml(row) {
+    row = row || {};
+    var t = normalizeDnsType(row.type);
+    var host = row.host || '';
+    var val = row.value || '';
+    var ttl = row.ttl != null ? row.ttl : 300;
+    return (
+      '<div class="dns-row dns-row--read" data-dns-type="' + escapeHtml(t) + '"' +
+      ' data-dns-host="' + escapeHtml(host) + '"' +
+      ' data-dns-value="' + escapeHtml(val) + '"' +
+      ' data-dns-ttl="' + escapeHtml(String(ttl)) + '">' +
+      '<div class="dns-cell">' + escapeHtml(t) + '</div>' +
+      '<div class="dns-cell">' + escapeHtml(host) + '</div>' +
+      '<div class="dns-cell">' + escapeHtml(val) + '</div>' +
+      '<div class="dns-cell">' + escapeHtml(String(ttl)) + '</div>' +
+      '<div class="dns-row-actions">' +
+      '<button type="button" class="btn-embed dns-edit-btn">Edit</button>' +
+      '<button type="button" class="btn-embed dns-delete-btn">Delete</button>' +
+      '</div></div>'
+    );
+  }
+
+  function dnsRowEditHtml(row) {
+    row = row || {};
+    var t = normalizeDnsType(row.type);
+    var ttl = row.ttl != null ? row.ttl : 300;
+    return (
+      '<div class="dns-row dns-row--editing">' +
+      '<div class="dns-edit-cell">' +
+      '<select class="dns-type dns-field" aria-label="Record type (A, AAAA, or CNAME)">' +
+      '<option value="A"' + (t === 'A' ? ' selected' : '') + '>A</option>' +
+      '<option value="AAAA"' + (t === 'AAAA' ? ' selected' : '') + '>AAAA</option>' +
+      '<option value="CNAME"' + (t === 'CNAME' ? ' selected' : '') + '>CNAME</option></select></div>' +
+      '<div class="dns-edit-cell">' +
+      '<input type="text" class="dns-host dns-field" value="' + escapeHtml(row.host || '') + '" placeholder="Host e.g. www.example.com." autocomplete="off" aria-label="Host (FQDN)"></div>' +
+      '<div class="dns-edit-cell">' +
+      '<input type="text" class="dns-val dns-field" value="' + escapeHtml(row.value || '') + '" placeholder="Points to (IP or hostname)" autocomplete="off" aria-label="Record value"></div>' +
+      '<div class="dns-edit-cell">' +
+      '<input type="number" class="dns-ttl dns-field" min="60" step="1" value="' + escapeHtml(String(ttl)) + '" inputmode="numeric" aria-label="TTL in seconds"></div>' +
+      '<div class="dns-row-actions">' +
+      '<button type="button" class="btn-embed dns-row-done-btn">Done</button>' +
+      '<button type="button" class="btn-embed dns-delete-btn">Delete</button>' +
+      '</div></div>'
+    );
+  }
+
+  function switchDnsRowToEdit(readRow) {
+    if (!readRow || !readRow.classList.contains('dns-row--read')) {
+      return;
+    }
+    var t = readRow.getAttribute('data-dns-type') || 'A';
+    var host = readRow.getAttribute('data-dns-host') || '';
+    var val = readRow.getAttribute('data-dns-value') || '';
+    var ttl = parseInt(readRow.getAttribute('data-dns-ttl'), 10) || 300;
+    var holder = document.createElement('div');
+    holder.innerHTML = dnsRowEditHtml({ type: t, host: host, value: val, ttl: ttl }).trim();
+    var next = holder.firstElementChild;
+    if (next && readRow.parentNode) {
+      readRow.parentNode.replaceChild(next, readRow);
+    }
+  }
+
+  function switchDnsRowToRead(editRow) {
+    if (!editRow || !editRow.classList.contains('dns-row--editing')) {
+      return;
+    }
+    var err = document.getElementById('dnsErr');
+    if (err) {
+      err.hidden = true;
+    }
+    var type = (editRow.querySelector('.dns-type') || {}).value || 'A';
+    var host = (editRow.querySelector('.dns-host') || {}).value || '';
+    var value = (editRow.querySelector('.dns-val') || {}).value || '';
+    var ttl = parseInt((editRow.querySelector('.dns-ttl') || {}).value, 10) || 300;
+    if (!host.trim() || !value.trim()) {
+      if (err) {
+        err.textContent = 'Host and value are required before leaving edit mode.';
+        err.hidden = false;
+      }
+      return;
+    }
+    var holder = document.createElement('div');
+    holder.innerHTML = dnsRowReadHtml({
+      type: type,
+      host: host.trim(),
+      value: value.trim(),
+      ttl: ttl
+    }).trim();
+    var next = holder.firstElementChild;
+    if (next && editRow.parentNode) {
+      editRow.parentNode.replaceChild(next, editRow);
+    }
+  }
+
+  function dnsRowsClickHandler(e) {
+    var wrap = e.currentTarget;
+    var row = e.target.closest('.dns-row');
+    if (!row || !wrap.contains(row)) {
+      return;
+    }
+    if (e.target.closest('.dns-edit-btn')) {
+      switchDnsRowToEdit(row);
+      return;
+    }
+    if (e.target.closest('.dns-delete-btn')) {
+      var count = wrap.querySelectorAll('.dns-row').length;
+      if (count <= 1) {
+        var errMin = document.getElementById('dnsErr');
+        if (errMin) {
+          errMin.textContent = 'Keep at least one DNS record.';
+          errMin.hidden = false;
+        }
+        return;
+      }
+      row.remove();
+      var errClr = document.getElementById('dnsErr');
+      if (errClr) {
+        errClr.hidden = true;
+      }
+      return;
+    }
+    if (e.target.closest('.dns-row-done-btn')) {
+      switchDnsRowToRead(row);
+    }
+  }
+
+  function collectDnsRows(wrap) {
+    var out = [];
+    wrap.querySelectorAll('.dns-row').forEach(function (row) {
+      var type;
+      var host;
+      var value;
+      var ttl;
+      if (row.classList.contains('dns-row--editing')) {
+        type = (row.querySelector('.dns-type') || {}).value || 'A';
+        host = (row.querySelector('.dns-host') || {}).value || '';
+        value = (row.querySelector('.dns-val') || {}).value || '';
+        ttl = parseInt((row.querySelector('.dns-ttl') || {}).value, 10) || 300;
+      } else {
+        type = row.getAttribute('data-dns-type') || 'A';
+        host = row.getAttribute('data-dns-host') || '';
+        value = row.getAttribute('data-dns-value') || '';
+        ttl = parseInt(row.getAttribute('data-dns-ttl'), 10) || 300;
+      }
+      if (host.trim() && value.trim()) {
+        out.push({ type: type, host: host.trim(), value: value.trim(), ttl: ttl });
+      }
+    });
+    return out;
+  }
+
+  function renderDnsRowsBlock(recs, fqdn) {
+    var rowsHtml = recs.length
+      ? recs.map(dnsRowReadHtml).join('')
+      : dnsRowEditHtml({
+        type: 'A',
+        host: fqdn.endsWith('.') ? fqdn : fqdn + '.',
+        value: '',
+        ttl: 300
+      });
+    return (
+      '<div class="dns-rows-wrap">' +
+      '<div class="dns-head" aria-hidden="true">' +
+      '<span>Type</span><span>Host (FQDN)</span><span>Value</span><span>TTL</span><span></span>' +
+      '</div>' +
+      '<div class="dns-rows" id="dnsRows">' + rowsHtml + '</div></div>'
+    );
+  }
+
+  function refreshDnsRowsFromServer(domainId, fqdn, wrap, onFail) {
+    return fetch('/api/domains/' + domainId + '/route53/records', {
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' }
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); })
+      .then(function (res) {
+        if (!res.data || !res.data.success) {
+          if (typeof onFail === 'function') {
+            onFail(res.data && res.data.message ? res.data.message : 'Could not refresh records.');
+          }
+          return;
+        }
+        var recs = res.data.records || [];
+        wrap.innerHTML = recs.length
+          ? recs.map(dnsRowReadHtml).join('')
+          : dnsRowEditHtml({
+            type: 'A',
+            host: fqdn.endsWith('.') ? fqdn : fqdn + '.',
+            value: '',
+            ttl: 300
+          });
+      })
+      .catch(function () {
+        if (typeof onFail === 'function') {
+          onFail('Could not refresh records.');
+        }
+      });
+  }
+
+  function showDnsModal(domainId, fqdn) {
+    openContextView('DNS (Route53) — ' + fqdn, '<p class="muted" id="dnsLoading">Loading records…</p>');
+    resetContextActions();
+    fetch('/api/domains/' + domainId + '/route53/records', { credentials: 'include', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); })
+      .then(function (res) {
+        var loading = document.getElementById('dnsLoading');
+        if (!loading) return;
+        if (!res.data || !res.data.success) {
+          loading.outerHTML = '<p class="err">' + escapeHtml(res.data && res.data.message ? res.data.message : 'Could not load DNS records.') + '</p>';
+          return;
+        }
+        var recs = res.data.records || [];
+        loading.outerHTML =
+          '<p class="muted">Hosted zone <code>' + escapeHtml(res.data.hostedZoneId || '') + '</code>. View or edit A/AAAA/CNAME records (non-alias).</p>' +
+          renderDnsRowsBlock(recs, fqdn) +
+          '<p><button type="button" class="btn-embed" id="dnsAddRow">Add record</button></p>' +
+          '<p class="err" id="dnsErr" hidden></p><p class="muted" id="dnsOk" hidden></p>';
+        var wrap = document.getElementById('dnsRows');
+        wrap.addEventListener('click', dnsRowsClickHandler);
+        document.getElementById('dnsAddRow').addEventListener('click', function () {
+          wrap.insertAdjacentHTML('beforeend', dnsRowEditHtml({ type: 'A', host: '', value: '', ttl: 300 }));
+        });
+        var saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'btn-embed primary';
+        saveBtn.textContent = 'Save DNS records';
+        saveBtn.addEventListener('click', function () {
+          var err = document.getElementById('dnsErr');
+          var ok = document.getElementById('dnsOk');
+          err.hidden = true;
+          ok.hidden = true;
+          var payload = collectDnsRows(wrap);
+          if (!payload.length) {
+            err.textContent = 'Add at least one complete row (host and value).';
+            err.hidden = false;
+            return;
+          }
+          saveBtn.disabled = true;
+          fetch('/api/domains/' + domainId + '/route53/records', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ dnsRecords: payload })
+          })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); })
+            .then(function (r2) {
+              saveBtn.disabled = false;
+              if (r2.data && r2.data.success) {
+                ok.textContent = r2.data.message || 'DNS updated.';
+                ok.hidden = false;
+                refreshDnsRowsFromServer(domainId, fqdn, wrap, function (msg) {
+                  err.textContent = msg;
+                  err.hidden = false;
+                });
+              } else {
+                err.textContent = (r2.data && r2.data.message) ? r2.data.message : 'Save failed.';
+                err.hidden = false;
+              }
+            })
+            .catch(function () {
+              saveBtn.disabled = false;
+              err.textContent = 'Request failed.';
+              err.hidden = false;
+            });
+        });
+        prependContextAction(saveBtn);
+      })
+      .catch(function () {
+        var loading = document.getElementById('dnsLoading');
+        if (loading) loading.outerHTML = '<p class="err">Request failed.</p>';
+      });
+  }
 
   fetch('/api/domains', { credentials: 'include', headers: { 'Accept': 'application/json' } })
     .then(function (r) {
@@ -136,7 +1038,7 @@
       var domains = data.domains || [];
       statusEl.hidden = true;
       statusEl.textContent = '';
-      listEl.innerHTML = '';
+      tbody.innerHTML = '';
       if (domains.length === 0) {
         statusEl.hidden = false;
         statusEl.className = 'muted';
@@ -146,11 +1048,33 @@
       domains.forEach(function (row) {
         var fq = (row.domainFqdn || '').trim();
         if (!fq) return;
-        var li = document.createElement('li');
-        li.textContent = fq;
-        listEl.appendChild(li);
+        var id = row.id;
+        var tr = document.createElement('tr');
+        var tdName = document.createElement('td');
+        tdName.className = 'domain-name';
+        tdName.textContent = fq;
+        var tdAct = document.createElement('td');
+        tdAct.className = 'td-actions';
+        var div = document.createElement('div');
+        div.className = 'actions';
+        [['Details', 'details'], ['DNS', 'dns'], ['Renew', 'renew']].forEach(function (spec) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'btn-embed';
+          b.textContent = spec[0];
+          b.addEventListener('click', function () {
+            if (spec[1] === 'details') showDetailsModal(id, fq);
+            else if (spec[1] === 'dns') showDnsModal(id, fq);
+            else showRenewModal(id, fq);
+          });
+          div.appendChild(b);
+        });
+        tdAct.appendChild(div);
+        tr.appendChild(tdName);
+        tr.appendChild(tdAct);
+        tbody.appendChild(tr);
       });
-      listEl.hidden = false;
+      tableWrap.hidden = false;
     })
     .catch(function () {
       statusEl.textContent = 'Could not load domains.';

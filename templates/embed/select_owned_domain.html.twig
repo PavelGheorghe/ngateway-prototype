@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Select domain</title>
+  <style>
+    html, body { margin: 0; min-height: 100%; height: 100%; font-family: system-ui, sans-serif; }
+    html, body.embed-select-owned-root { background: transparent; }
+    body.embed-select-owned-root {
+      box-sizing: border-box; min-height: 100%; height: 100%; margin: 0;
+      color: #0f172a;
+    }
+    .embed-select-owned-backdrop {
+      min-height: 100%; min-height: 100dvh; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      padding: 1rem; box-sizing: border-box;
+      background: rgba(15, 23, 42, 0.45);
+    }
+    .embed-select-owned-modal {
+      width: 100%; max-width: 640px; max-height: min(92vh, calc(100dvh - 2rem));
+      overflow: auto; -webkit-overflow-scrolling: touch;
+      background: #fff; border-radius: 12px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+      padding: 1.5rem 1.5rem 2rem; box-sizing: border-box;
+      display: flex; flex-direction: column; min-height: 0;
+    }
+    .embed-modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; margin-bottom: 0.75rem; flex-shrink: 0;
+    }
+    .embed-modal-header h1 { margin: 0; font-size: 1.2rem; font-weight: 600; }
+    .embed-modal-close {
+      flex-shrink: 0; width: 2.25rem; height: 2.25rem; padding: 0; border: 0;
+      background: transparent; color: #64748b; font-size: 1.75rem;
+      line-height: 1; cursor: pointer; border-radius: 8px;
+    }
+    .embed-modal-close:hover { background: #f1f5f9; color: #0f172a; }
+    .muted { color: #64748b; font-size: 0.9rem; margin-bottom: 1rem; line-height: 1.45; }
+    .err { color: #b91c1c; font-size: 0.9rem; }
+    .domain-table-wrap { overflow: auto; }
+    .domain-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .domain-table th, .domain-table td {
+      text-align: left; padding: 0.5rem 0.4rem; border-bottom: 1px solid #e2e8f0;
+    }
+    .domain-table th { color: #475569; font-weight: 600; }
+    .btn-embed {
+      background: #2563eb; color: #fff; border: 0; border-radius: 8px;
+      padding: 0.4rem 0.85rem; font-size: 0.85rem; cursor: pointer;
+    }
+    .btn-embed:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-embed.secondary { background: #f1f5f9; color: #0f172a; border: 1px solid #cbd5e1; }
+  </style>
+</head>
+<body class="embed-select-owned-root">
+  <div class="embed-select-owned-backdrop">
+    <div class="embed-select-owned-modal" role="dialog" aria-modal="true" aria-labelledby="selectOwnedTitle">
+      <header class="embed-modal-header">
+        <h1 id="selectOwnedTitle">Select a domain</h1>
+        <button type="button" class="embed-modal-close" id="selectOwnedDismiss" aria-label="Close">×</button>
+      </header>
+      <p class="muted" id="selectOwnedStatus">Loading…</p>
+      <div id="selectOwnedTableWrap" class="domain-table-wrap" hidden>
+        <table class="domain-table">
+          <thead>
+            <tr>
+              <th scope="col">Domain</th>
+              <th scope="col" style="width:8rem;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="selectOwnedTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script type="application/json" id="embedSelectOwnedConfig">{{ { allowedParentOrigins: allowed_parent_origins, trustedAmemberUserId: trusted_amember_user_id }|json_encode|raw }}</script>
+  <script>
+(function () {
+  var cfgEl = document.getElementById('embedSelectOwnedConfig');
+  var cfg = { allowedParentOrigins: [] };
+  try {
+    if (cfgEl && cfgEl.textContent) {
+      cfg = JSON.parse(cfgEl.textContent.trim());
+    }
+  } catch (e) {}
+
+  var allowed = cfg.allowedParentOrigins || [];
+  function originAllowed(origin) {
+    if (!allowed.length) return true;
+    return allowed.indexOf(origin) !== -1;
+  }
+
+  function postToParent(msg) {
+    if (window.parent === window) return;
+    var target = '*';
+    if (window.__SELECT_OWNED_CONTEXT__ && window.__SELECT_OWNED_CONTEXT__.parentOrigin) {
+      target = window.__SELECT_OWNED_CONTEXT__.parentOrigin;
+    }
+    window.parent.postMessage(msg, target);
+  }
+
+  var statusEl = document.getElementById('selectOwnedStatus');
+  var tableWrap = document.getElementById('selectOwnedTableWrap');
+  var tbody = document.getElementById('selectOwnedTbody');
+
+  function setStatus(text, isError) {
+    var t = text == null ? '' : String(text);
+    statusEl.textContent = t;
+    statusEl.hidden = t.trim() === '';
+    statusEl.className = isError ? 'err' : 'muted';
+  }
+
+  function loadDomains() {
+    setStatus('Loading…', false);
+    tableWrap.hidden = true;
+    tbody.innerHTML = '';
+    fetch('/api/domains', { credentials: 'include', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); })
+      .then(function (res) {
+        if (!res.ok || !res.data || !res.data.success) {
+          setStatus((res.data && res.data.message) ? res.data.message : 'Could not load domains.', true);
+          return;
+        }
+        var list = res.data.domains || [];
+        if (!list.length) {
+          setStatus('No domains yet. Purchase a domain first or add one in your account.', false);
+          return;
+        }
+        setStatus('Choose a domain to connect this site. DNS records will be applied in Route53.', false);
+        list.forEach(function (row) {
+          var id = row.id;
+          var fqdn = row.domainFqdn || '';
+          var tr = document.createElement('tr');
+          var tdName = document.createElement('td');
+          tdName.textContent = fqdn;
+          var tdAct = document.createElement('td');
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn-embed';
+          btn.textContent = 'Connect';
+          btn.dataset.domainId = String(id);
+          btn.dataset.fqdn = fqdn;
+          tdAct.appendChild(btn);
+          tr.appendChild(tdName);
+          tr.appendChild(tdAct);
+          tbody.appendChild(tr);
+        });
+        tableWrap.hidden = false;
+      })
+      .catch(function () {
+        setStatus('Request failed.', true);
+      });
+  }
+
+  var pendingDns = null;
+
+  function requestDnsFromParent(domainName, domainId, btn) {
+    if (pendingDns) {
+      return;
+    }
+    pendingDns = { domainId: domainId, fqdn: domainName, btn: btn };
+    btn.disabled = true;
+    setStatus('Fetching DNS from Brizy…', false);
+    postToParent({ type: 'PUNTU_SELECT_OWNED_REQUEST_DNS', domainName: domainName });
+  }
+
+  function applyRoute53ThenComplete(domainId, fqdn, dnsRecords, btn) {
+    setStatus('Applying DNS in Route53…', false);
+    fetch('/api/domains/' + encodeURIComponent(domainId) + '/route53/records', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ dnsRecords: dnsRecords })
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); })
+      .then(function (res) {
+        if (btn) btn.disabled = false;
+        pendingDns = null;
+        if (!res.data || !res.data.success) {
+          var msg = (res.data && res.data.message) ? res.data.message : 'Could not update DNS.';
+          setStatus(msg, true);
+          postToParent({ type: 'PUNTU_SELECT_OWNED_ERROR', payload: { message: msg } });
+          return;
+        }
+        setStatus('DNS updated. Linking to Brizy…', false);
+        postToParent({
+          type: 'PUNTU_SELECT_OWNED_COMPLETE',
+          payload: { domain: fqdn, domainId: domainId }
+        });
+      })
+      .catch(function () {
+        if (btn) btn.disabled = false;
+        pendingDns = null;
+        setStatus('Request failed.', true);
+      });
+  }
+
+  document.getElementById('selectOwnedDismiss').addEventListener('click', function () {
+    postToParent({ type: 'PUNTU_SELECT_OWNED_CLOSE' });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      postToParent({ type: 'PUNTU_SELECT_OWNED_CLOSE' });
+    }
+  });
+
+  tbody.addEventListener('click', function (e) {
+    var btn = e.target.closest('button.btn-embed');
+    if (!btn || !tbody.contains(btn)) return;
+    var id = parseInt(btn.dataset.domainId, 10);
+    var fqdn = (btn.dataset.fqdn || '').trim();
+    if (!id || !fqdn) return;
+    requestDnsFromParent(fqdn, id, btn);
+  });
+
+  window.addEventListener('message', function (ev) {
+    if (!originAllowed(ev.origin)) {
+      return;
+    }
+    var data = ev.data;
+    if (!data || !data.type) {
+      return;
+    }
+    if (data.type === 'PUNTU_SELECT_OWNED_INIT') {
+      var payload = data.payload || {};
+      if (cfg.trustedAmemberUserId != null && String(cfg.trustedAmemberUserId) !== '') {
+        payload.amemberUserId = cfg.trustedAmemberUserId;
+      }
+      window.__SELECT_OWNED_CONTEXT__ = payload;
+      loadDomains();
+      return;
+    }
+    if (data.type === 'PUNTU_SELECT_OWNED_DNS_RESULT') {
+      var p = data.payload || {};
+      var pend = pendingDns;
+      if (!pend) {
+        return;
+      }
+      if (p.error) {
+        if (pend.btn) pend.btn.disabled = false;
+        pendingDns = null;
+        setStatus(p.error, true);
+        return;
+      }
+      var recs = p.dnsRecords || [];
+      if (!recs.length) {
+        if (pend.btn) pend.btn.disabled = false;
+        pendingDns = null;
+        setStatus('No DNS records returned from Brizy.', true);
+        return;
+      }
+      applyRoute53ThenComplete(pend.domainId, pend.fqdn, recs, pend.btn);
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    postToParent({ type: 'PUNTU_SELECT_OWNED_READY' });
+  });
+})();
+  </script>
+</body>
+</html>

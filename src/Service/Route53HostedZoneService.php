@@ -102,6 +102,31 @@ final class Route53HostedZoneService
     }
 
     /**
+     * Resolve an existing public hosted zone id by apex FQDN (same matching as createForDomain when zone already exists).
+     *
+     * @return array<string, mixed> success payload with hostedZoneId or not_found
+     */
+    public function resolveHostedZoneIdByFqdn(string $fqdn): array
+    {
+        $dnsName = $this->normalizeDnsName($fqdn);
+        if ($dnsName === '') {
+            return ['success' => false, 'code' => 'invalid', 'message' => 'domainName required'];
+        }
+
+        if (trim($this->accessKeyId) === '' || trim($this->secretAccessKey) === '') {
+            return [
+                'success' => false,
+                'code' => 'config',
+                'message' => 'AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set.',
+            ];
+        }
+
+        $client = $this->createClient();
+
+        return $this->fetchDelegationForExistingZone($client, $dnsName);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function dnssecFailureFromAwsException(AwsException $e, string $messagePrefix = ''): array
